@@ -415,13 +415,10 @@ func OperateVm(c *gin.Context) {
 		return
 	}
 
-	// 关机/强制断电前检查锁定状态
+	// 关机/强制断电时若虚拟机已锁定，在响应中附加提示信息
+	var lockWarning string
 	if (req.Action == "shutdown" || req.Action == "destroy") && service.IsVMLocked(name) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": "该虚拟机已锁定，无法执行关机操作。请先解锁后再操作。",
-		})
-		return
+		lockWarning = "该虚拟机已锁定，关机操作将继续执行"
 	}
 
 	// 开机前检查配额（仅非管理员用户）
@@ -481,10 +478,14 @@ func OperateVm(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"code":    200,
 		"message": actionText + "指令已下发",
-	})
+	}
+	if lockWarning != "" {
+		resp["warning"] = lockWarning
+	}
+	c.JSON(http.StatusOK, resp)
 	service.RefreshVMCacheByNameAsync(name)
 
 	// 开机/关机/强制断电后异步触发全局带宽重新分配

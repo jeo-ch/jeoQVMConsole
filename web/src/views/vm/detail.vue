@@ -84,17 +84,21 @@
               <el-button type="warning" :loading="operating" icon="Refresh" class="power-btn">重启</el-button>
             </template>
           </el-popconfirm>
-          <el-tooltip v-if="vmInfo.locked" content="虚拟机已锁定，无法关机" placement="top">
-            <el-button plain disabled icon="Lock" class="power-btn">关机（已锁定）</el-button>
-          </el-tooltip>
+          <el-popconfirm v-if="vmInfo.locked" title="⚠️ 虚拟机已锁定，关机可能影响正在运行的服务，确定要关机吗？" placement="bottom" @confirm="handleAction('shutdown')">
+            <template #reference>
+              <el-button plain :loading="operating" icon="SwitchButton" class="power-btn" style="border-color: #E6A23C; color: #E6A23C;">关机（已锁定）</el-button>
+            </template>
+          </el-popconfirm>
           <el-popconfirm v-else title="确定要关机吗？" placement="bottom" @confirm="handleAction('shutdown')">
             <template #reference>
               <el-button plain :loading="operating" icon="SwitchButton" class="power-btn">关机</el-button>
             </template>
           </el-popconfirm>
-          <el-tooltip v-if="vmInfo.locked" content="虚拟机已锁定，无法断电" placement="top">
-            <el-button disabled icon="Lock" class="power-btn" style="color: #F56C6C;">强制断电（已锁定）</el-button>
-          </el-tooltip>
+          <el-popconfirm v-if="vmInfo.locked" title="⚠️ 虚拟机已锁定，强制断电可能影响正在运行的服务，确定要断电吗？" placement="bottom" @confirm="handleAction('destroy')">
+            <template #reference>
+              <el-button :loading="operating" icon="CircleClose" class="power-btn" style="border-color: #F56C6C; color: #F56C6C;">强制断电（已锁定）</el-button>
+            </template>
+          </el-popconfirm>
           <el-popconfirm v-else title="确定要断电吗？" placement="bottom" @confirm="handleAction('destroy')">
             <template #reference>
               <el-button type="danger" :loading="operating" icon="CircleClose" class="power-btn">强制断电</el-button>
@@ -112,7 +116,7 @@
           </el-popconfirm>
         </template>
         <template v-else>
-          <el-popconfirm title="锁定后虚拟机将无法关机或删除，确定要锁定吗？" placement="bottom" @confirm="handleLockAction('lock')">
+          <el-popconfirm title="锁定后虚拟机将无法删除，关机需二次确认，确定要锁定吗？" placement="bottom" @confirm="handleLockAction('lock')">
             <template #reference>
               <el-button plain size="small" icon="Lock">锁定虚拟机</el-button>
             </template>
@@ -586,7 +590,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { createVmDetailSSE, operateVm, resetVmLinuxPassword, lockVm, unlockVm } from '@/api/vm'
 import { getDiskList } from '@/api/vm'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import SnapshotList from '@/components/SnapshotList.vue'
 import NetworkList from '@/components/NetworkList.vue'
 import VncConsole from '@/components/VncConsole.vue'

@@ -223,8 +223,8 @@
                     <el-table-column prop="created_at" label="创建时间" min-width="170" align="center" sortable />
                     <el-table-column label="操作" width="250" fixed="right" align="center">
                       <template #default="{ row }">
-                        <el-tooltip :content="row.locked ? '虚拟机已锁定，无法关机' : (row.status === 'running' ? '关机' : row.status === 'paused' ? '继续启动' : '开机')" placement="top">
-                          <el-button size="small" circle class="operate-btn" :type="row.status === 'running' ? 'warning' : 'success'" :loading="operatingMap[row.name]" :icon="row.status === 'running' ? 'SwitchButton' : 'VideoPlay'" :disabled="isMigrating(row) || (row.locked && row.status === 'running')" @click="handleOperate(row, row.status === 'running' ? 'shutdown' : 'start')" />
+                        <el-tooltip :content="row.locked && row.status === 'running' ? '虚拟机已锁定，关机需二次确认' : (row.status === 'running' ? '关机' : row.status === 'paused' ? '继续启动' : '开机')" placement="top">
+                          <el-button size="small" circle class="operate-btn" :type="row.status === 'running' ? 'warning' : 'success'" :loading="operatingMap[row.name]" :icon="row.status === 'running' ? 'SwitchButton' : 'VideoPlay'" :disabled="isMigrating(row)" @click="handleOperate(row, row.status === 'running' ? 'shutdown' : 'start')" />
                         </el-tooltip>
                         <el-tooltip v-if="row.status === 'paused'" content="重置" placement="top">
                           <el-button size="small" circle class="operate-btn" type="danger" :loading="operatingMap[row.name]" icon="RefreshRight" :disabled="isMigrating(row)" @click="handleOperate(row, 'reset')" />
@@ -308,14 +308,14 @@
                         </el-link>
                         <el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
                       </div>
-                      <el-tooltip :content="row.locked ? '虚拟机已锁定' : (row.status === 'running' ? '关机' : row.status === 'paused' ? '继续启动' : '开机')" placement="top">
+                      <el-tooltip :content="row.locked && row.status === 'running' ? '虚拟机已锁定，关机需二次确认' : (row.status === 'running' ? '关机' : row.status === 'paused' ? '继续启动' : '开机')" placement="top">
                         <el-button
                           size="small"
                           circle
                           :type="row.status === 'running' ? 'warning' : 'success'"
                           :loading="operatingMap[row.name]"
                           :icon="row.status === 'running' ? 'SwitchButton' : 'VideoPlay'"
-                          :disabled="isMigrating(row) || (row.locked && row.status === 'running')"
+                          :disabled="isMigrating(row)"
                           @click="handleOperate(row, row.status === 'running' ? 'shutdown' : 'start')"
                         />
                       </el-tooltip>
@@ -430,14 +430,14 @@
                     </el-link>
                     <el-tag :type="statusType(row.status)" size="small">{{ statusText(row.status) }}</el-tag>
                   </div>
-                  <el-tooltip :content="row.locked ? '虚拟机已锁定' : (row.status === 'running' ? '关机' : row.status === 'paused' ? '继续启动' : '开机')" placement="top">
+                  <el-tooltip :content="row.locked && row.status === 'running' ? '虚拟机已锁定，关机需二次确认' : (row.status === 'running' ? '关机' : row.status === 'paused' ? '继续启动' : '开机')" placement="top">
                     <el-button
                       size="small"
                       circle
                       :type="row.status === 'running' ? 'warning' : 'success'"
                       :loading="operatingMap[row.name]"
                       :icon="row.status === 'running' ? 'SwitchButton' : 'VideoPlay'"
-                      :disabled="isMigrating(row) || (row.locked && row.status === 'running')"
+                      :disabled="isMigrating(row)"
                       @click="handleOperate(row, row.status === 'running' ? 'shutdown' : 'start')"
                     />
                   </el-tooltip>
@@ -1791,7 +1791,20 @@ const handleOperate = async (row, action) => {
     const actionText = action === 'start'
       ? (row.status === 'paused' ? '继续启动' : '开机')
       : { shutdown: '关机', destroy: '强制断电', reboot: '重启', reset: '重置' }[action]
-    await ElMessageBox.confirm(`确定要对 ${row.name} 执行${actionText}操作吗?`, '提示', { type: 'warning' })
+    if (row.locked && (action === 'shutdown' || action === 'destroy')) {
+      await ElMessageBox.confirm(
+        `⚠️ 虚拟机「${row.name}」已锁定\n\n该操作可能影响正在运行的服务，确定要继续执行${actionText}操作吗？`,
+        '虚拟机已锁定 - 二次确认',
+        {
+          type: 'error',
+          confirmButtonText: '确认关机',
+          cancelButtonText: '取消',
+          confirmButtonClass: 'el-button--danger'
+        }
+      )
+    } else {
+      await ElMessageBox.confirm(`确定要对 ${row.name} 执行${actionText}操作吗?`, '提示', { type: 'warning' })
+    }
     operatingMap.value[row.name] = true
     await operateVm(row.name, action)
     ElMessage.success(`${actionText}指令已下发`)
@@ -1806,11 +1819,24 @@ const handleBatchOperate = async (action) => {
     ElMessage.warning('选中的虚拟机包含迁移中状态，请先取消选择后再操作')
     return
   }
-  // 批量关机/断电时检查是否有锁定的虚拟机
+  // 批量关机/断电时检查是否有锁定的虚拟机，有则二次确认
   if ((action === 'shutdown' || action === 'destroy') && selectedVms.value.some(vm => vm.locked)) {
     const lockedNames = selectedVms.value.filter(vm => vm.locked).map(v => v.name).join(', ')
-    ElMessage.warning(`选中的虚拟机中包含已锁定的虚拟机（${lockedNames}），请先解锁后再操作`)
-    return
+    const actionText = { shutdown: '关机', destroy: '强制断电' }[action]
+    try {
+      await ElMessageBox.confirm(
+        `⚠️ 选中的虚拟机中包含已锁定的虚拟机（${lockedNames}）\n\n对已锁定虚拟机执行${actionText}操作可能影响正在运行的服务，确定要继续吗？`,
+        '虚拟机已锁定 - 批量操作二次确认',
+        {
+          type: 'error',
+          confirmButtonText: '确认执行',
+          cancelButtonText: '取消',
+          confirmButtonClass: 'el-button--danger'
+        }
+      )
+    } catch {
+      return
+    }
   }
   const actionText = { start: '开机', shutdown: '关机', destroy: '强制断电', reboot: '重启', reset: '重置' }[action]
   try {
@@ -1903,7 +1929,7 @@ const handleMore = async (command, row) => {
   } else if (command === 'lock') {
     try {
       await ElMessageBox.confirm(
-        `确定要锁定虚拟机 "${row.name}" 吗？\n锁定后虚拟机将无法关机或删除。`,
+        `确定要锁定虚拟机 "${row.name}" 吗？\n锁定后虚拟机将无法删除，关机需二次确认。`,
         '锁定虚拟机',
         { type: 'warning' }
       )
