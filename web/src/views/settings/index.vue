@@ -754,6 +754,40 @@
         <el-form-item label="测试收件邮箱">
           <el-input v-model="form.smtp_test_email" placeholder="保存配置后发送测试邮件" />
         </el-form-item>
+
+            <el-divider content-position="left">
+          <el-icon style="margin-right: 4px;"><Warning /></el-icon>
+          JWT 密钥管理
+        </el-divider>
+
+        <el-form-item label="自动轮换间隔">
+          <el-input-number v-model="form.jwt_secret_rotate_hours" :min="0" :max="720" :disabled="form.development_mode" style="width: 100%;" />
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            默认 24 小时自动轮换 JWT 签名密钥，设为 0 禁用自动轮换。开发模式下自动轮换会被跳过 | 环境变量: KVM_JWT_SECRET_ROTATE_HOURS
+          </div>
+        </el-form-item>
+
+        <el-form-item v-if="form.jwt_secret_last_rotated" label="上次轮换时间">
+          <el-tag type="info">{{ form.jwt_secret_last_rotated }}</el-tag>
+        </el-form-item>
+
+        <el-form-item label="手动轮换JWT密钥">
+          <el-button
+            type="danger"
+            :loading="rotatingJWT"
+            :disabled="form.development_mode"
+            @click="handleRotateJWT"
+          >
+            {{ form.development_mode ? '开发模式不允许轮换' : (rotatingJWT ? '轮换中...' : '立即轮换 JWT 密钥') }}
+          </el-button>
+          <div class="form-tip">
+            <el-icon><InfoFilled /></el-icon>
+            <span v-if="form.development_mode" style="color: var(--el-color-warning);">开发模式下 JWT 密钥轮换功能已禁用</span>
+            <span v-else>轮换后所有 Token 将立即失效，所有用户需重新登录。此操作需高风险二次验证</span>
+          </div>
+        </el-form-item>
+
             <el-divider content-position="left">
           <el-icon style="margin-right: 4px;"><Warning /></el-icon>
           维护模式
@@ -862,7 +896,7 @@
 <script setup>
 import { computed, ref, reactive, onMounted } from 'vue'
 import { Check, Connection, CopyDocument, Cpu, Delete, FirstAidKit, FolderOpened, InfoFilled, Message, Odometer, Plus, Refresh, Warning } from '@element-plus/icons-vue'
-import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings } from '@/api/settings'
+import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, rotateJWTSecret, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings } from '@/api/settings'
 import { getAllISOs } from '@/api/infra'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { setSiteTitle } from '@/utils/site'
@@ -962,6 +996,8 @@ const form = reactive({
   smtp_password_configured: false,
   smtp_configured: false,
   smtp_test_email: '',
+  jwt_secret_rotate_hours: 24,
+  jwt_secret_last_rotated: '',
 })
 
 // ISO 列表
@@ -1373,7 +1409,8 @@ const buildPayload = () => ({
   smtp_from_name: form.smtp_from_name,
   smtp_from_address: form.smtp_from_address,
   smtp_security: form.smtp_security,
-  smtp_timeout_seconds: form.smtp_timeout_seconds
+  smtp_timeout_seconds: form.smtp_timeout_seconds,
+  jwt_secret_rotate_hours: form.jwt_secret_rotate_hours
 })
 
 const handleTestSMTP = async () => {
@@ -1391,6 +1428,34 @@ const handleTestSMTP = async () => {
     console.error(err)
   } finally {
     testing.value = false
+  }
+}
+
+const rotatingJWT = ref(false)
+
+const handleRotateJWT = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '轮换 JWT 密钥后所有用户 Token 将立即失效，需要重新登录。确定继续吗？',
+      '轮换 JWT 密钥',
+      {
+        confirmButtonText: '确定轮换',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+  rotatingJWT.value = true
+  try {
+    const res = await rotateJWTSecret({})
+    ElMessage.success(res.message || 'JWT 密钥轮换成功')
+    await fetchData()
+  } catch (err) {
+    console.error(err)
+  } finally {
+    rotatingJWT.value = false
   }
 }
 

@@ -69,6 +69,9 @@ type SettingsResponse struct {
 	DefaultDiskIOPSWrite int `json:"default_disk_iops_write"` // 默认写 IOPS 限制（0 表示不限制）
 	// 批量克隆最大同时克隆数量
 	BatchCloneMaxConcurrency int `json:"batch_clone_max_concurrency"`
+	// JWT 密钥自动轮换间隔（小时，0=禁用）
+	JWTSecretRotateHours  int    `json:"jwt_secret_rotate_hours"`
+	JWTSecretLastRotated  string `json:"jwt_secret_last_rotated"`
 }
 
 // UpdateSettingsRequest 更新设置请求
@@ -124,6 +127,8 @@ type UpdateSettingsRequest struct {
 	DefaultDiskIOPSWrite *int `json:"default_disk_iops_write"` // 默认写 IOPS 限制（0 表示不限制）
 	// 批量克隆最大同时克隆数量
 	BatchCloneMaxConcurrency *int `json:"batch_clone_max_concurrency"`
+	// JWT 密钥轮换间隔
+	JWTSecretRotateHours *int `json:"jwt_secret_rotate_hours"`
 }
 
 type TestSMTPRequest struct {
@@ -161,6 +166,7 @@ func GetSettings(c *gin.Context) {
 	if maintenanceServiceUnits == "" {
 		maintenanceServiceUnits = config.DefaultMaintenanceServiceUnits()
 	}
+	jwtLastRotated, _ := model.GetSetting("jwt_secret_last_rotated")
 	c.JSON(http.StatusOK, gin.H{
 		"code":    200,
 		"message": "ok",
@@ -217,6 +223,8 @@ func GetSettings(c *gin.Context) {
 			DefaultDiskIOPSRead:                   cfg.DefaultDiskIOPSRead,
 			DefaultDiskIOPSWrite:                  cfg.DefaultDiskIOPSWrite,
 			BatchCloneMaxConcurrency:              cfg.BatchCloneMaxConcurrency,
+			JWTSecretRotateHours:                  cfg.JWTSecretRotateHours,
+			JWTSecretLastRotated:                  jwtLastRotated,
 		},
 	})
 }
@@ -494,6 +502,13 @@ func UpdateSettings(c *gin.Context) {
 		}
 		cfg.BatchCloneMaxConcurrency = *req.BatchCloneMaxConcurrency
 	}
+	if req.JWTSecretRotateHours != nil {
+		if *req.JWTSecretRotateHours < 0 || *req.JWTSecretRotateHours > 720 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "JWT 密钥轮换间隔需在 0 - 720 小时之间"})
+			return
+		}
+		cfg.JWTSecretRotateHours = *req.JWTSecretRotateHours
+	}
 
 	if cfg.AutoPortStart >= cfg.AutoPortEnd {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口起始值必须小于结束值"})
@@ -567,6 +582,31 @@ func TestSMTP(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "测试邮件已发送"})
+}
+
+// RotateJWTSecret 手动轮换 JWT 密钥
+func RotateJWTSecret(c *gin.Context) {
+	if !requireHighRiskVerification(c, "rotate_jwt_secret") {
+		return
+	}
+	if config.GlobalConfig.DevelopmentMode {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "开发模式下不允许手动轮换 JWT 密钥"})
+		return
+	}
+
+	newSecret, err := service.RotateJWTSecret()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "轮换 JWT 密钥失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "JWT 密钥轮换成功，所有 Token 已失效，请重新登录",
+		"data": gin.H{
+			"new_secret_prefix": newSecret[:8] + "...",
+		},
+	})
 }
 
 func persistSettings(cfg *config.Config) []string {

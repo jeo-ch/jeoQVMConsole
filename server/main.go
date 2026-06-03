@@ -46,6 +46,9 @@ func main() {
 		log.Printf("启动时虚拟机缓存同步完成")
 	}
 
+	// 安全检查（数据库设置加载完成后）
+	config.ValidateSecurity()
+
 	// 注册任务处理器
 	registerTaskHandlers()
 
@@ -58,6 +61,7 @@ func main() {
 	service.StartSchedulerEventCleanup()
 	service.StartPortForwardHTTPProbeScheduler()
 	service.StartVMScheduleRunner()
+	service.StartJWTSecretRotator()
 
 	// 同步 SSH 拒绝配置（确保与数据库状态一致）
 	service.SyncSSHDenyConfig()

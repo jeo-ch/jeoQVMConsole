@@ -13,6 +13,7 @@ const (
 	defaultMaintenanceServiceUnits = "kvm-console.service,libvirtd.service,libvirtd.socket,libvirtd-ro.socket,libvirtd-admin.socket"
 	DefaultISODir                  = "/var/lib/libvirt/images/ISO"
 	DefaultSiteTitle               = "QVMConsole"
+	defaultJWTSecret               = "kvm-console-secret-key-change-me"
 )
 
 // Config 全局配置
@@ -29,6 +30,8 @@ type Config struct {
 	SecuritySecret string `json:"security_secret"`
 	// JWT 过期时间（小时）
 	JWTExpireHours int `json:"jwt_expire_hours"`
+	// JWT 密钥自动轮换间隔（小时，0=禁用）
+	JWTSecretRotateHours int `json:"jwt_secret_rotate_hours"`
 	// 模板目录
 	TemplateDir string `json:"template_dir"`
 	// 模板导入临时目录
@@ -139,10 +142,11 @@ func Init() {
 	GlobalConfig = &Config{
 		Port:                                  getEnvInt("KVM_PORT", 8080),
 		DBPath:                                getEnv("KVM_DB_PATH", "./data/kvm_console.db"),
-		JWTSecret:                             getEnv("KVM_JWT_SECRET", "kvm-console-secret-key-change-me"),
+		JWTSecret:                             getEnv("KVM_JWT_SECRET", defaultJWTSecret),
 		VMCredentialSecret:                    getEnv("KVM_VM_CREDENTIAL_SECRET", ""),
 		SecuritySecret:                        getEnv("KVM_SECURITY_SECRET", ""),
 		JWTExpireHours:                        getEnvInt("KVM_JWT_EXPIRE_HOURS", 24),
+		JWTSecretRotateHours:                  getEnvInt("KVM_JWT_SECRET_ROTATE_HOURS", 24),
 		TemplateDir:                           templateDir,
 		TemplateImportDir:                     getEnv("KVM_TEMPLATE_IMPORT_DIR", filepath.Join(templateDir, "_imports")),
 		TemplateExportDir:                     getEnv("KVM_TEMPLATE_EXPORT_DIR", filepath.Join(templateDir, "_exports")),
@@ -210,6 +214,40 @@ func Init() {
 	}
 	if GlobalConfig.SecuritySecret == "" {
 		GlobalConfig.SecuritySecret = GlobalConfig.JWTSecret
+	}
+}
+
+// ValidateSecurity 启动后安全检查（需在数据库设置加载完成后调用）
+func ValidateSecurity() {
+	if GlobalConfig.VMCredentialSecret != "" && GlobalConfig.VMCredentialSecret == GlobalConfig.JWTSecret &&
+		GlobalConfig.JWTSecret != defaultJWTSecret && !GlobalConfig.DevelopmentMode {
+		fmt.Fprintf(os.Stderr, "[安全警告] KVM_VM_CREDENTIAL_SECRET 未设置，已回退使用 KVM_JWT_SECRET。建议为不同用途生成独立密钥。\n")
+	}
+	if GlobalConfig.SecuritySecret != "" && GlobalConfig.SecuritySecret == GlobalConfig.JWTSecret &&
+		GlobalConfig.JWTSecret != defaultJWTSecret && !GlobalConfig.DevelopmentMode {
+		fmt.Fprintf(os.Stderr, "[安全警告] KVM_SECURITY_SECRET 未设置，已回退使用 KVM_JWT_SECRET。建议为不同用途生成独立密钥。\n")
+	}
+
+	// 拒绝默认 JWT 密钥启动（开发模式仅警告）
+	if GlobalConfig.JWTSecret == defaultJWTSecret {
+		if GlobalConfig.DevelopmentMode {
+			fmt.Fprintf(os.Stderr, "\n[安全警告] ================================================\n")
+			fmt.Fprintf(os.Stderr, "[安全警告] 当前正在使用默认 JWT 密钥运行！\n")
+			fmt.Fprintf(os.Stderr, "[安全警告] 任何人可以通过已知密钥伪造身份令牌。\n")
+			fmt.Fprintf(os.Stderr, "[安全警告] 由于当前处于开发模式，服务仍将继续启动。\n")
+			fmt.Fprintf(os.Stderr, "[安全警告] 生产环境请务必设置 KVM_JWT_SECRET 环境变量！\n")
+			fmt.Fprintf(os.Stderr, "[安全警告] 建议运行: KVM_JWT_SECRET=$(openssl rand -base64 48)\n")
+			fmt.Fprintf(os.Stderr, "[安全警告] ================================================\n\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "\n[安全错误] ================================================\n")
+			fmt.Fprintf(os.Stderr, "[安全错误] 检测到默认 JWT 密钥，出于安全考虑拒绝启动！\n")
+			fmt.Fprintf(os.Stderr, "[安全错误] 请设置 KVM_JWT_SECRET 环境变量为随机强密钥。\n")
+			fmt.Fprintf(os.Stderr, "[安全错误] 生成密钥: openssl rand -base64 48\n")
+			fmt.Fprintf(os.Stderr, "[安全错误] 或在 .env 文件中写入: KVM_JWT_SECRET=<随机密钥>\n")
+			fmt.Fprintf(os.Stderr, "[安全错误] 如果你确实需要测试环境，可设置 KVM_DEVELOPMENT_MODE=true\n")
+			fmt.Fprintf(os.Stderr, "[安全错误] ================================================\n\n")
+			os.Exit(1)
+		}
 	}
 }
 
@@ -302,6 +340,7 @@ var PersistableKeys = []string{
 	"default_disk_iops_read",
 	"default_disk_iops_write",
 	"batch_clone_max_concurrency",
+	"jwt_secret_rotate_hours",
 }
 
 // keyToEnvVar 配置项到环境变量的映射
@@ -360,6 +399,7 @@ var keyToEnvVar = map[string]string{
 	"default_disk_iops_read":                    "KVM_DEFAULT_DISK_IOPS_READ",
 	"default_disk_iops_write":                   "KVM_DEFAULT_DISK_IOPS_WRITE",
 	"batch_clone_max_concurrency":               "KVM_BATCH_CLONE_MAX_CONCURRENCY",
+	"jwt_secret_rotate_hours":                   "KVM_JWT_SECRET_ROTATE_HOURS",
 }
 
 // LoadFromDB 从数据库加载持久化的设置覆盖当前配置
@@ -539,6 +579,10 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			if v, err := strconv.Atoi(value); err == nil && v > 0 {
 				c.BatchCloneMaxConcurrency = v
 			}
+		case "jwt_secret_rotate_hours":
+			if v, err := strconv.Atoi(value); err == nil && v >= 0 {
+				c.JWTSecretRotateHours = v
+			}
 		}
 	}
 }
@@ -600,6 +644,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"default_disk_iops_read":                    strconv.Itoa(c.DefaultDiskIOPSRead),
 		"default_disk_iops_write":                   strconv.Itoa(c.DefaultDiskIOPSWrite),
 		"batch_clone_max_concurrency":               strconv.Itoa(c.BatchCloneMaxConcurrency),
+		"jwt_secret_rotate_hours":                   strconv.Itoa(c.JWTSecretRotateHours),
 	}
 }
 

@@ -57,6 +57,16 @@ export function testSMTP(data, token = '') {
   })
 }
 
+// 手动轮换 JWT 密钥
+export function rotateJWTSecret(data, token = '') {
+  return request({
+    url: '/settings/jwt-secret/rotate',
+    method: 'post',
+    data,
+    headers: withStageToken(token)
+  })
+}
+
 // 获取宿主机 Intel KVM unrestricted_guest 状态
 export function getHostKVMUnrestrictedGuestStatus() {
   return request({

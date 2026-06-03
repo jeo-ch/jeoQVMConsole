@@ -447,6 +447,7 @@ write_env() {
     env_set "KVM_PORT" "$KVM_PORT"
     env_default "KVM_DB_PATH" "${INSTALL_DIR}/data/kvm_console.db"
     env_default "KVM_JWT_SECRET" "$(random_secret)"
+    env_default "KVM_JWT_SECRET_ROTATE_HOURS" "24"
 
     if [ "$MODE" = "install" ] || [ "$MODE" = "repair" ]; then
         env_default "KVM_VM_CREDENTIAL_SECRET" "$(random_secret)"
