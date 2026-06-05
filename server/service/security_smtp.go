@@ -49,6 +49,113 @@ func IsSMTPConfigured() bool {
 		strings.TrimSpace(cfg.SMTPFromAddress) != ""
 }
 
+// SMTPTestConfig 测试邮件时使用的 SMTP 配置（无需持久化）
+type SMTPTestConfig struct {
+	Host          string `json:"smtp_host"`
+	Port          int    `json:"smtp_port"`
+	Username      string `json:"smtp_username"`
+	Password      string `json:"smtp_password"`
+	FromName      string `json:"smtp_from_name"`
+	FromAddress   string `json:"smtp_from_address"`
+	Security      string `json:"smtp_security"`
+	TimeoutSeconds int   `json:"smtp_timeout_seconds"`
+}
+
+// Validate 校验测试配置必填字段
+func (c *SMTPTestConfig) Validate() error {
+	if strings.TrimSpace(c.Host) == "" {
+		return fmt.Errorf("SMTP 主机不能为空")
+	}
+	if c.Port <= 0 || c.Port > 65535 {
+		return fmt.Errorf("SMTP 端口无效")
+	}
+	if strings.TrimSpace(c.FromAddress) == "" {
+		return fmt.Errorf("发件邮箱不能为空")
+	}
+	return nil
+}
+
+// SendEmailWithConfig 使用传入的 SMTP 配置发送邮件（不依赖全局配置）
+func SendEmailWithConfig(cfg SMTPTestConfig, to, subject, body string) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	host := strings.TrimSpace(cfg.Host)
+	addr := fmt.Sprintf("%s:%d", host, cfg.Port)
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+
+	fromAddress := strings.TrimSpace(cfg.FromAddress)
+	headers := []string{
+		fmt.Sprintf("From: %s <%s>", encodeMailHeader(cfg.FromName), fromAddress),
+		fmt.Sprintf("To: %s", strings.TrimSpace(to)),
+		fmt.Sprintf("Subject: %s", encodeMailHeader(subject)),
+		"MIME-Version: 1.0",
+		"Content-Type: text/plain; charset=UTF-8",
+		"",
+		body,
+	}
+	message := []byte(strings.Join(headers, "\r\n"))
+
+	var auth smtp.Auth
+	if strings.TrimSpace(cfg.Username) != "" {
+		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, host)
+	}
+
+	securityMode := normalizeSMTPSecurity(cfg.Security)
+	switch securityMode {
+	case "ssl":
+		conn, err := tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", addr, &tls.Config{
+			ServerName: host,
+			MinVersion: tls.VersionTLS12,
+		})
+		if err != nil {
+			return fmt.Errorf("连接 SMTP SSL 失败: %w", err)
+		}
+		defer conn.Close()
+
+		client, err := smtp.NewClient(conn, host)
+		if err != nil {
+			return fmt.Errorf("创建 SMTP 客户端失败: %w", err)
+		}
+		defer client.Close()
+		if err := smtpSend(client, auth, fromAddress, strings.TrimSpace(to), message); err != nil {
+			return err
+		}
+	default:
+		conn, err := net.DialTimeout("tcp", addr, timeout)
+		if err != nil {
+			return fmt.Errorf("连接 SMTP 失败: %w", err)
+		}
+		defer conn.Close()
+
+		client, err := smtp.NewClient(conn, host)
+		if err != nil {
+			return fmt.Errorf("创建 SMTP 客户端失败: %w", err)
+		}
+		defer client.Close()
+
+		if securityMode == "starttls" {
+			if ok, _ := client.Extension("STARTTLS"); ok {
+				if err := client.StartTLS(&tls.Config{
+					ServerName: host,
+					MinVersion: tls.VersionTLS12,
+				}); err != nil {
+					return fmt.Errorf("启动 STARTTLS 失败: %w", err)
+				}
+			}
+		}
+		if err := smtpSend(client, auth, fromAddress, strings.TrimSpace(to), message); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SetSMTPPassword 更新运行时 SMTP 密码
 func SetSMTPPassword(plainPassword string) error {
 	plainPassword = strings.TrimSpace(plainPassword)

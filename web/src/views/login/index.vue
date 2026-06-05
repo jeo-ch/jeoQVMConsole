@@ -80,6 +80,20 @@
 
         <el-card v-if="stageRole === 'admin' && !stageSecurity.smtp_configured" shadow="never" class="section-card">
           <template #header>SMTP 配置</template>
+          <el-alert
+            v-if="!smtpTested"
+            title="请先填写 SMTP 配置信息和测试收件邮箱，发送测试邮件验证通过后才能保存配置。"
+            type="warning"
+            :closable="false"
+            style="margin-bottom: 16px;"
+          />
+          <el-alert
+            v-else
+            title="测试邮件发送成功！请确认无误后点击保存按钮完成 SMTP 配置。"
+            type="success"
+            :closable="false"
+            style="margin-bottom: 16px;"
+          />
           <el-form label-width="110px">
             <el-form-item label="SMTP 主机">
               <el-input v-model="smtpForm.smtp_host" />
@@ -109,9 +123,12 @@
             <el-form-item label="超时秒数">
               <el-input-number v-model="smtpForm.smtp_timeout_seconds" :min="5" :max="120" style="width: 100%;" />
             </el-form-item>
+            <el-form-item label="测试收件邮箱">
+              <el-input v-model="smtpTestEmail" placeholder="请输入用于接收测试邮件的邮箱地址" :disabled="smtpTested" />
+            </el-form-item>
             <el-form-item>
-              <el-button type="primary" :loading="savingSMTP" @click="saveSMTP">保存 SMTP</el-button>
-              <el-button :loading="testingSMTP" @click="sendSMTPTest">发送测试邮件</el-button>
+              <el-button type="success" :loading="testingSMTP" :disabled="smtpTested" @click="sendSMTPTest">发送测试邮件</el-button>
+              <el-button v-if="smtpTested" type="primary" :loading="savingSMTP" @click="saveSMTP">保存 SMTP</el-button>
             </el-form-item>
           </el-form>
         </el-card>
@@ -365,6 +382,8 @@ const smtpForm = reactive({
   smtp_security: 'starttls',
   smtp_timeout_seconds: 15
 })
+const smtpTestEmail = ref('')
+const smtpTested = ref(false)
 const totpSetup = reactive({
   secret: '',
   otpauth_url: '',
@@ -450,6 +469,8 @@ const applyStage = async (data) => {
   totpCode.value = ''
 
   if (stage.value === 'bootstrap_security' && stageRole.value === 'admin' && !stageSecurity.smtp_configured) {
+    smtpTestEmail.value = ''
+    smtpTested.value = false
     await loadSMTPSettings()
   }
 }
@@ -524,16 +545,18 @@ const saveSMTP = async () => {
 }
 
 const sendSMTPTest = async () => {
-  if (!emailForm.email) {
-    ElMessage.error('请先输入邮箱用于接收测试邮件')
+  if (!smtpTestEmail.value) {
+    ElMessage.error('请先输入测试收件邮箱')
     return
   }
   testingSMTP.value = true
   try {
-    await updateSettings({ ...smtpForm }, stageToken.value)
-    await testSMTP({ email: emailForm.email }, stageToken.value)
-    stageSecurity.smtp_configured = true
-    ElMessage.success('测试邮件已发送')
+    await testSMTP({
+      email: smtpTestEmail.value,
+      ...smtpForm
+    }, stageToken.value)
+    smtpTested.value = true
+    ElMessage.success('测试邮件已发送，请检查收件箱。确认无误后点击保存完成配置。')
   } finally {
     testingSMTP.value = false
   }
@@ -712,6 +735,8 @@ const resetStage = () => {
   totpSetup.otpauth_url = ''
   totpSetup.qrCodeData = ''
   totpCode.value = ''
+  smtpTestEmail.value = ''
+  smtpTested.value = false
 }
 
 const resetForgotState = () => {

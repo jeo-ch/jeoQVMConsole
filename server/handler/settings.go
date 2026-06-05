@@ -132,7 +132,15 @@ type UpdateSettingsRequest struct {
 }
 
 type TestSMTPRequest struct {
-	Email string `json:"email" binding:"required"`
+	Email              string `json:"email" binding:"required"`
+	SMTPHost           string `json:"smtp_host"`
+	SMTPPort           int    `json:"smtp_port"`
+	SMTPUsername       string `json:"smtp_username"`
+	SMTPPassword       string `json:"smtp_password"`
+	SMTPFromName       string `json:"smtp_from_name"`
+	SMTPFromAddress    string `json:"smtp_from_address"`
+	SMTPSecurity       string `json:"smtp_security"`
+	SMTPTimeoutSeconds int    `json:"smtp_timeout_seconds"`
 }
 
 type PublicSettingsResponse struct {
@@ -577,6 +585,28 @@ func TestSMTP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请输入测试邮箱"})
 		return
 	}
+
+	// 如果请求中携带了 SMTP 配置参数，则使用传入的配置直接测试（不保存）
+	if strings.TrimSpace(req.SMTPHost) != "" {
+		err := service.SendEmailWithConfig(service.SMTPTestConfig{
+			Host:           req.SMTPHost,
+			Port:           req.SMTPPort,
+			Username:       req.SMTPUsername,
+			Password:       req.SMTPPassword,
+			FromName:       req.SMTPFromName,
+			FromAddress:    req.SMTPFromAddress,
+			Security:       req.SMTPSecurity,
+			TimeoutSeconds: req.SMTPTimeoutSeconds,
+		}, strings.TrimSpace(req.Email), "SMTP 测试邮件", "这是一封来自QVMConsole的 SMTP 测试邮件。")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "测试邮件发送失败: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "测试邮件已发送"})
+		return
+	}
+
+	// 兼容旧调用：未传 SMTP 配置时使用已保存的全局配置
 	if err := service.SendEmail(strings.TrimSpace(req.Email), "SMTP 测试邮件", "这是一封来自QVMConsole的 SMTP 测试邮件。"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "测试邮件发送失败: " + err.Error()})
 		return
