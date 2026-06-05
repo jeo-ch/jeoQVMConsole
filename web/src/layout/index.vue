@@ -4,10 +4,10 @@
     <el-aside 
       :width="isMobile ? '260px' : (isCollapse ? '64px' : '220px')" 
       class="sidebar"
-      :class="{ 'mobile-show': !isCollapse && isMobile }"
+      :class="{ 'mobile-show': !isCollapse && isMobile, 'is-collapsed': isCollapse && !isMobile }"
     >
       <div class="logo">
-        <span>{{ displaySiteTitle }}</span>
+        <img class="sidebar-logo" src="@/assets/logo.png" alt="logo" />
         <el-icon v-if="isMobile" class="mobile-sidebar-close" @click="isCollapse = true"><Close /></el-icon>
       </div>
       <el-menu
@@ -895,8 +895,11 @@ const handleCommand = (command) => {
 
 .logo {
   height: 60px;
-  line-height: 60px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
   color: var(--el-text-color-primary);
   font-size: 16px;
   font-weight: 700;
@@ -904,9 +907,15 @@ const handleCommand = (command) => {
   border-bottom: 1px solid var(--app-border-light, var(--el-border-color-light));
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   position: relative;
   letter-spacing: -0.01em;
+}
+
+.sidebar-logo {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 
 .el-menu-vertical {

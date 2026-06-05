@@ -2,7 +2,7 @@
   <div class="login-container">
       <div class="login-box">
       <div class="card-header">
-        <span>{{ displaySiteTitle }}</span>
+        <img class="login-logo" src="@/assets/logo.png" alt="logo" />
       </div>
 
       <template v-if="stage === 'login'">
@@ -144,7 +144,6 @@
 
       <div class="helper-links">
         <el-link type="primary" :underline="false" @click="forgotVisible = true">忘记密码</el-link>
-        <el-link type="primary" :underline="false" @click="dialogVisible = true">了解更多</el-link>
       </div>
     </div>
 
@@ -692,6 +691,16 @@ const handleForgotCancel = () => {
 .card-header {
   text-align: center;
   margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.login-logo {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
 }
 
 .card-header span {
@@ -837,6 +846,11 @@ const handleForgotCancel = () => {
     border-radius: 18px;
   }
 
+  .login-logo {
+    width: 69px;
+    height: 69px;
+  }
+
   .card-header span {
     font-size: 22px;
   }
@@ -861,6 +875,11 @@ const handleForgotCancel = () => {
     margin-top: 10px;
     padding: 22px 14px;
     border-radius: 14px;
+  }
+
+  .login-logo {
+    width: 60px;
+    height: 60px;
   }
 
   .card-header span {
