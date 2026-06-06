@@ -684,3 +684,20 @@ func SaveCPUAffinityPresets(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "预设已保存"})
 }
+
+// GetUserStorageISOPath 获取当前用户的存储 ISO 目录路径（用于一键修改系统 ISO 存放位置）
+func GetUserStorageISOPath(c *gin.Context) {
+	username := c.GetString("username")
+	if username == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未获取到用户信息"})
+		return
+	}
+	isoPath := service.GetUserISODir(username)
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "ok",
+		"data": gin.H{
+			"iso_path": isoPath,
+		},
+	})
+}

@@ -81,6 +81,7 @@ func Setup() *gin.Engine {
 		{
 			settings.GET("", handler.GetSettings)
 			settings.PUT("", handler.UpdateSettings)
+			settings.GET("/user-storage-iso-path", handler.GetUserStorageISOPath)
 			settings.POST("/smtp/test", handler.TestSMTP)
 			settings.PUT("/cpu-affinity-presets", handler.SaveCPUAffinityPresets)
 			settings.POST("/jwt-secret/rotate", handler.RotateJWTSecret)

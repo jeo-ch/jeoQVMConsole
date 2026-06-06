@@ -129,6 +129,14 @@ export function getCPUAffinityPresets() {
   })
 }
 
+// 获取当前用户存储 ISO 目录路径（用于一键修改系统 ISO 存放位置）
+export function getUserStorageISOPath() {
+  return request({
+    url: '/settings/user-storage-iso-path',
+    method: 'get'
+  })
+}
+
 // 保存 CPU 亲和性预设列表（管理员）
 export function saveCPUAffinityPresets(data) {
   return request({

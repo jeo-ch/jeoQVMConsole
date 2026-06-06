@@ -107,7 +107,12 @@
         </el-form-item>
 
         <el-form-item label="ISO 存放位置">
-          <el-input v-model="form.iso_dir" placeholder="/var/lib/libvirt/images/ISO" />
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <el-input v-model="form.iso_dir" placeholder="/var/lib/libvirt/images/ISO" style="flex: 1;" />
+            <el-button @click="handleSetToUserStorageISO" :loading="userStorageISOLoading">
+              一键修改到我的存储
+            </el-button>
+          </div>
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
             创建虚拟机和救援系统下拉框都会读取这个目录下的 `.iso` 文件 | 环境变量: KVM_ISO_DIR
@@ -896,7 +901,7 @@
 <script setup>
 import { computed, ref, reactive, onMounted } from 'vue'
 import { Check, Connection, CopyDocument, Cpu, Delete, FirstAidKit, FolderOpened, InfoFilled, Message, Odometer, Plus, Refresh, Warning } from '@element-plus/icons-vue'
-import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, rotateJWTSecret, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings } from '@/api/settings'
+import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, getUserStorageISOPath, rotateJWTSecret, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings } from '@/api/settings'
 import { getAllISOs } from '@/api/infra'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { setSiteTitle } from '@/utils/site'
@@ -921,6 +926,7 @@ const activeTab = ref('basic')
 const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
+const userStorageISOLoading = ref(false)
 const formRef = ref(null)
 const ksmHelpVisible = ref(false)
 const ksmLoading = ref(false)
@@ -1279,6 +1285,26 @@ const handleKVMUnrestrictedGuestChange = async (enabled) => {
     loadKVMUnrestrictedGuestStatus()
   } finally {
     kvmUnrestrictedGuestSaving.value = false
+  }
+}
+
+// 一键修改 ISO 存放位置到当前用户的存储 ISO 目录
+const handleSetToUserStorageISO = async () => {
+  userStorageISOLoading.value = true
+  try {
+    const res = await getUserStorageISOPath()
+    const isoPath = res.data?.iso_path
+    if (isoPath) {
+      form.iso_dir = isoPath
+      ElMessage.success('已修改为我的存储 ISO 目录: ' + isoPath)
+    } else {
+      ElMessage.error('获取存储 ISO 目录失败，请确保已开通存储池')
+    }
+  } catch (err) {
+    console.error('获取用户存储 ISO 路径失败:', err)
+    ElMessage.error('获取存储 ISO 目录失败，请确保已开通存储池')
+  } finally {
+    userStorageISOLoading.value = false
   }
 }
 
