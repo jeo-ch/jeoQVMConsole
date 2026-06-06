@@ -167,3 +167,13 @@ export function resetPasswordByEmail(data) {
     data
   })
 }
+
+// 管理员跳过安全初始化
+export function skipBootstrap(token) {
+  return request({
+    url: '/auth/skip-bootstrap',
+    method: 'post',
+    data: { confirm: true },
+    headers: withStageToken(token)
+  })
+}

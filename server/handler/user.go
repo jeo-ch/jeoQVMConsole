@@ -17,8 +17,9 @@ import (
 // CreateUserRequest 创建用户请求
 type CreateUserRequest struct {
 	Username                   string                                     `json:"username" binding:"required"`
-	Email                      string                                     `json:"email" binding:"required"`
-	Role                       string                                     `json:"role"`       // admin/user
+	Email                      string                                     `json:"email"`
+	Password                   string                                     `json:"password"` // SMTP 未配置时必填
+	Role                       string                                     `json:"role"`   // admin/user
 	CloudType                  string                                     `json:"cloud_type"` // elastic/lightweight
 	DedicatedVPCSwitchID       uint                                       `json:"dedicated_vpc_switch_id"`
 	MaxCPU                     int                                        `json:"max_cpu"`           // CPU配额
@@ -155,6 +156,87 @@ func CreateUser(c *gin.Context) {
 	enablePortForward := resolveCreateUserEnablePortForward(role, req.EnablePortForward)
 	maxPortForwards := resolveCreateUserMaxPortForwards(role, req.MaxPortForwards)
 	maxSnapshots := resolveCreateUserMaxSnapshots(role, req.MaxSnapshots)
+
+	// SMTP 未配置时，邮件发送不可用，必须填写密码直接创建激活用户
+	smtpConfigured := service.IsSMTPConfigured()
+	if !smtpConfigured {
+		email := strings.TrimSpace(req.Email)
+		if email == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "SMTP 尚未配置，无法发送邀请邮件，请填写完整的用户信息（包括邮箱和密码）",
+			})
+			return
+		}
+		password := strings.TrimSpace(req.Password)
+		if password == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "SMTP 未配置时，必须为用户设置初始密码",
+			})
+			return
+		}
+		if err := service.ValidateStrongPassword(password); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"code":    400,
+				"message": "密码不符合要求: " + err.Error(),
+			})
+			return
+		}
+
+		// 直接创建激活用户
+		user, err := service.CreateActiveUserDirectly(req.Username, email, password, role, cloudType,
+			req.MaxCPU, req.MaxMemory, req.MaxDisk, req.MaxVM, req.MaxStorage, req.MaxRuntimeHours,
+			enablePortForward, maxPortForwards, maxSnapshots,
+			req.MaxBandwidthUp, req.MaxBandwidthDown, req.MaxTrafficDown, req.MaxTrafficUp, req.MaxPublicIPs)
+		if err != nil {
+			if strings.Contains(err.Error(), "已存在") || strings.Contains(err.Error(), "已被使用") {
+				c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建用户失败: " + err.Error()})
+			return
+		}
+
+		// 处理轻量云 VM 注册
+		if service.IsLightweightCloudType(cloudType) && len(req.LightweightVMRegistrations) > 0 {
+			if _, err := service.CreateLightweightVMRegistrations(user.Username, req.LightweightVMRegistrations, "admin"); err != nil {
+				c.JSON(http.StatusOK, gin.H{"code": 200, "message": "用户已创建，但轻量云 VM 注册失败: " + err.Error(), "data": gin.H{"username": user.Username}})
+				return
+			}
+		}
+		if service.IsLightweightCloudType(cloudType) && len(req.LightweightExistingVMs) > 0 {
+			quotaByVM := make(map[string]service.LightweightVMQuotaRequest)
+			for _, quota := range req.LightweightExistingVMQuotas {
+				quotaByVM[quota.VMName] = quota
+			}
+			quotas := make([]service.LightweightVMQuotaRequest, 0, len(req.LightweightExistingVMs))
+			for _, vmName := range req.LightweightExistingVMs {
+				if q, ok := quotaByVM[vmName]; ok {
+					quotas = append(quotas, q)
+				} else {
+					quotas = append(quotas, service.LightweightVMQuotaRequest{
+						VMName: vmName, MaxPortForwards: 10, MaxSnapshots: 2,
+					})
+				}
+			}
+			_ = service.AssignVMsToUserWithQuotas(user.Username, req.LightweightExistingVMs, quotas)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "用户已创建（SMTP 未配置，用户可直接使用初始密码登录）",
+			"data":    gin.H{"username": user.Username},
+		})
+		return
+	}
+
+	// SMTP 已配置：原有邀请注册流程
+	email := strings.TrimSpace(req.Email)
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "邮箱不能为空"})
+		return
+	}
 
 	// 如果选择已有VM，不需要专用VPC
 	dedicatedVPCSwitchID := req.DedicatedVPCSwitchID

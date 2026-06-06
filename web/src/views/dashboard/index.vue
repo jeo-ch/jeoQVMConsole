@@ -1,5 +1,20 @@
 <template>
   <div class="dashboard-container">
+    <!-- SMTP 未配置安全警告横幅 -->
+    <el-alert
+      v-if="isAdmin && !smtpConfigured"
+      type="error"
+      :closable="false"
+      class="security-warning-banner"
+    >
+      <template #title>
+        <div class="banner-content">
+          <el-icon size="18"><WarningFilled /></el-icon>
+          <span>安全警告：SMTP 邮件服务尚未配置，邮箱绑定、邀请注册、找回密码和敏感操作二次验证等功能将无法使用。请尽快前往<el-link type="warning" :underline="true" @click="$router.push('/settings')">系统设置</el-link>完成 SMTP 配置，或确保当前处于安全可信的网络环境中。</span>
+        </div>
+      </template>
+    </el-alert>
+
     <!-- ========== 管理员首页 ========== -->
     <template v-if="isAdmin">
       <!-- 实时监控环形图 -->
@@ -249,7 +264,8 @@ import { getHostStats, getHostDisks, createHostStatsSSE } from '@/api/host'
 import { useUserStore } from '@/store/user'
 import { 
   Cpu, Coin, Monitor, Download, Upload, Connection, Timer,
-  FolderOpened, Camera, Link, ArrowDown, DataAnalysis, Files
+  FolderOpened, Camera, Link, ArrowDown, DataAnalysis, Files,
+  WarningFilled
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import ResourceCharts from '@/components/ResourceCharts.vue'
@@ -258,6 +274,11 @@ import request from '@/utils/request'
 const userStore = useUserStore()
 const isAdmin = computed(() => userStore.role === 'admin')
 const isLightweight = computed(() => userStore.cloudType === 'lightweight')
+
+// SMTP 是否已配置，用于安全警告横幅
+const smtpConfigured = computed(() => {
+  return userStore.security?.smtp_configured === true
+})
 
 // ========== 管理员数据 ==========
 const hostData = ref({})
@@ -619,6 +640,21 @@ onUnmounted(() => {
   padding: 10px;
   background-color: var(--el-bg-color-page);
   min-height: calc(100vh - 84px);
+}
+
+/* ===== 安全警告横幅 ===== */
+.security-warning-banner {
+  margin-bottom: 20px;
+  border-radius: 8px;
+}
+.security-warning-banner .banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.security-warning-banner .el-link {
+  display: inline;
+  font-weight: 600;
 }
 
 .section {

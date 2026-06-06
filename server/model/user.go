@@ -23,6 +23,7 @@ type User struct {
 	TOTPRecoveryCodesEnc  string         `json:"-" gorm:"type:text"` // 加密的恢复码哈希列表（JSON 数组）
 	LoginVerifiedUntil    *time.Time     `json:"login_verified_until"`
 	HighRiskVerifiedUntil *time.Time     `json:"high_risk_verified_until"`
+	BootstrapSkipped      bool           `json:"bootstrap_skipped" gorm:"default:false"` // 管理员是否跳过安全初始化
 	SecurityUpdatedAt     *time.Time     `json:"security_updated_at"`
 	MaxCPU                int            `json:"max_cpu" gorm:"default:0"`           // CPU 配额（核心数），0=不限
 	MaxMemory             int            `json:"max_memory" gorm:"default:0"`        // 内存配额（GB），0=不限

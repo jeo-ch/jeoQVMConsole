@@ -942,3 +942,55 @@ func ResetPasswordByEmail(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "message": "密码已重置，请重新登录"})
 }
+
+// SkipBootstrapRequest 跳过安全初始化请求
+type SkipBootstrapRequest struct {
+	Confirm bool `json:"confirm" binding:"required"`
+}
+
+// SkipBootstrap 管理员跳过安全初始化（SMTP+邮箱+2FA）
+func SkipBootstrap(c *gin.Context) {
+	var req SkipBootstrapRequest
+	if err := c.ShouldBindJSON(&req); err != nil || !req.Confirm {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请确认跳过安全初始化"})
+		return
+	}
+
+	user := getCurrentUser(c)
+	if user.Role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可跳过安全初始化"})
+		return
+	}
+
+	if err := service.SkipAdminBootstrap(user.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "操作失败: " + err.Error()})
+		return
+	}
+
+	// 重新加载用户以获取最新状态
+	var refreshed model.User
+	if err := model.DB.First(&refreshed, user.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取用户状态失败"})
+		return
+	}
+
+	accessToken, err := middleware.GenerateToken(refreshed.ID, refreshed.Username, refreshed.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成访问令牌失败"})
+		return
+	}
+
+	state := service.BuildSecurityState(&refreshed)
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "已跳过安全初始化，SMTP、邮箱和2FA均未配置，请注意账户安全",
+		"data": LoginStageResponse{
+			Stage:     "success",
+			Token:     accessToken,
+			Username:  refreshed.Username,
+			Role:      refreshed.Role,
+			CloudType: service.NormalizeCloudType(refreshed.CloudType),
+			Security:  state,
+		},
+	})
+}

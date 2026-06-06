@@ -21,6 +21,7 @@ type SecurityState struct {
 	SMTPConfigured      bool    `json:"smtp_configured"`
 	DevelopmentMode     bool    `json:"development_mode"`
 	MaintenanceMode     bool    `json:"maintenance_mode"`
+	BootstrapSkipped    bool    `json:"bootstrap_skipped"`   // 管理员是否跳过了安全初始化
 	Status              string  `json:"status"`
 	LoginVerifiedUntil  *string `json:"login_verified_until"`
 	HighRiskMethod      string  `json:"high_risk_method"`
@@ -35,17 +36,18 @@ func IsSecurityVerificationDisabled() bool {
 // BuildSecurityState 构建安全状态
 func BuildSecurityState(user *model.User) SecurityState {
 	state := SecurityState{
-		Email:            strings.TrimSpace(user.Email),
-		MaskedEmail:      MaskEmail(user.Email),
-		EmailVerified:    user.EmailVerifiedAt != nil,
-		TOTPEnabled:      user.TOTPEnabled,
-		MustBindEmail:    user.EmailVerifiedAt == nil,
-		MustBind2FA:      user.Role == "admin" && !user.TOTPEnabled,
-		SMTPConfigured:   IsSMTPConfigured(),
-		DevelopmentMode:  IsSecurityVerificationDisabled(),
-		MaintenanceMode:  IsMaintenanceModeEnabled(),
-		Status:           user.Status,
-		HasRecoveryCodes: HasRecoveryCodes(user),
+		Email:             strings.TrimSpace(user.Email),
+		MaskedEmail:       MaskEmail(user.Email),
+		EmailVerified:     user.EmailVerifiedAt != nil,
+		TOTPEnabled:       user.TOTPEnabled,
+		MustBindEmail:     user.EmailVerifiedAt == nil,
+		MustBind2FA:       user.Role == "admin" && !user.TOTPEnabled,
+		SMTPConfigured:    IsSMTPConfigured(),
+		DevelopmentMode:   IsSecurityVerificationDisabled(),
+		MaintenanceMode:   IsMaintenanceModeEnabled(),
+		BootstrapSkipped:  user.BootstrapSkipped,
+		Status:            user.Status,
+		HasRecoveryCodes:  HasRecoveryCodes(user),
 	}
 	if state.DevelopmentMode {
 		state.MustBindEmail = false

@@ -172,6 +172,7 @@
         </el-card>
 
         <div class="action-row">
+          <el-button type="warning" text @click="handleSkipBootstrap" style="margin-right: auto;">跳过安全设置</el-button>
           <el-button @click="resetStage">返回登录</el-button>
         </div>
       </template>
@@ -301,7 +302,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import QRCode from 'qrcode'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { useUserStore } from '@/store/user'
 import { siteTitle } from '@/utils/site'
@@ -315,7 +316,8 @@ import {
   sendLoginEmailCode,
   setup2FA,
   verifyForgotPasswordCode,
-  verifyLoginStage
+  verifyLoginStage,
+  skipBootstrap
 } from '@/api/auth'
 import { getSettings, testSMTP, updateSettings } from '@/api/settings'
 
@@ -710,6 +712,32 @@ const submitForgot = async () => {
   } finally {
     sendingForgot.value = false
   }
+}
+
+const handleSkipBootstrap = () => {
+  ElMessageBox.confirm(
+    '跳过安全设置后，SMTP 邮件服务、邮箱绑定和 2FA 双因素认证均不会配置。' +
+    '相关功能（邀请注册、找回密码、邮箱验证等）将不可用，敏感操作将无法进行二次验证。' +
+    '请在确保当前处于安全可信的网络环境中使用，并尽快完成安全配置。',
+    '跳过安全初始化风险提示',
+    {
+      confirmButtonText: '我已知晓风险，跳过',
+      cancelButtonText: '返回继续配置',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger',
+      dangerouslyUseHTMLString: false
+    }
+  ).then(async () => {
+    loading.value = true
+    try {
+      const res = await skipBootstrap(stageToken.value)
+      applySession(res.data)
+    } catch (err) {
+      // error handled by interceptor
+    } finally {
+      loading.value = false
+    }
+  }).catch(() => {})
 }
 
 const resetStage = () => {

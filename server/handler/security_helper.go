@@ -80,6 +80,11 @@ func requireHighRiskVerificationWithOptions(c *gin.Context, operation string, al
 		}
 	}
 
+	// SMTP 未配置时，无法发送邮箱验证码，敏感操作二次验证一律跳过
+	if !service.IsSMTPConfigured() {
+		return true
+	}
+
 	if operation == "" {
 		operation = "high_risk_operation"
 	}

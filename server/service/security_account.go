@@ -381,10 +381,15 @@ func resetUserPassword(user *model.User, newPassword string) error {
 // BindUserEmail 绑定或更新邮箱
 func BindUserEmail(userID uint, email string, verifiedAt time.Time) error {
 	email = strings.TrimSpace(strings.ToLower(email))
-	return model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+	if err := model.DB.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"email":             email,
 		"email_verified_at": &verifiedAt,
-	}).Error
+	}).Error; err != nil {
+		return err
+	}
+	// 管理员完成邮箱绑定后，尝试清除跳过引导标记
+	_ = TryClearBootstrapSkipped(userID)
+	return nil
 }
 
 // EnableUserTOTP 启用用户 2FA，返回恢复码明文（仅此一次）
@@ -420,6 +425,9 @@ func EnableUserTOTP(userID uint, secret string) (*TOTPRecoverySetup, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 管理员完成 2FA 绑定后，尝试清除跳过引导标记
+	_ = TryClearBootstrapSkipped(userID)
 
 	return &TOTPRecoverySetup{RecoveryCodes: plainCodes}, nil
 }
@@ -488,7 +496,20 @@ func GrantHighRiskVerificationTrust(userID uint) error {
 
 // CanSkipHighRiskVerification 判断是否可跳过高风险验证
 func CanSkipHighRiskVerification(user *model.User) bool {
-	return user != nil && user.HighRiskVerifiedUntil != nil && time.Now().Before(*user.HighRiskVerifiedUntil)
+	if user == nil {
+		return false
+	}
+	// 管理员跳过了安全初始化
+	if user.BootstrapSkipped {
+		// 但如果 SMTP 已配置且邮箱已验证，说明可以正常发送验证码，
+		// 此时应恢复邮箱验证，不再跳过
+		if IsSMTPConfigured() && user.EmailVerifiedAt != nil {
+			return false
+		}
+		// SMTP 未配置或邮箱未验证时，继续跳过
+		return true
+	}
+	return user.HighRiskVerifiedUntil != nil && time.Now().Before(*user.HighRiskVerifiedUntil)
 }
 
 // CanEnterBootstrap 判断是否需要进入安全引导
@@ -500,9 +521,123 @@ func CanEnterBootstrap(user *model.User) bool {
 		return false
 	}
 	if user.Role == "admin" {
+		// 管理员如果已跳过安全初始化，不再进入引导
+		if user.BootstrapSkipped {
+			return false
+		}
 		return !IsSMTPConfigured() || user.EmailVerifiedAt == nil || !user.TOTPEnabled
 	}
 	return user.EmailVerifiedAt == nil
+}
+
+// SkipAdminBootstrap 管理员跳过安全初始化，标记已跳过
+// 注意：不更新 security_updated_at，因为这只是标记变更，不应令当前 Token 失效
+func SkipAdminBootstrap(userID uint) error {
+	return model.DB.Model(&model.User{}).Where("id = ? AND role = ?", userID, "admin").Update("bootstrap_skipped", true).Error
+}
+
+// TryClearBootstrapSkipped 管理员完成安全配置后，自动清除跳过引导标记
+// 当管理员已绑定邮箱且启用 2FA 时，视为安全配置完成
+// 注意：不更新 security_updated_at，清除标记不应令当前 Token 失效
+func TryClearBootstrapSkipped(userID uint) error {
+	var user model.User
+	if err := model.DB.First(&user, userID).Error; err != nil {
+		return err
+	}
+	// 非管理员或无跳过标记，无需处理
+	if user.Role != "admin" || !user.BootstrapSkipped {
+		return nil
+	}
+	// 仅当邮箱已验证且 2FA 已启用时才清除跳过标记
+	if user.EmailVerifiedAt != nil && user.TOTPEnabled {
+		return model.DB.Model(&model.User{}).Where("id = ?", userID).Update("bootstrap_skipped", false).Error
+	}
+	return nil
+}
+
+// CreateActiveUserDirectly 直接创建已激活用户（SMTP未配置时的回退方案）
+func CreateActiveUserDirectly(username, email, password, role, cloudType string,
+	maxCPU, maxMemory, maxDisk, maxVM, maxStorage, maxRuntimeHours int,
+	enablePortForward bool, maxPortForwards, maxSnapshots int,
+	maxBandwidthUp, maxBandwidthDown, maxTrafficDown, maxTrafficUp float64, maxPublicIPs int) (*model.User, error) {
+
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(strings.ToLower(email))
+	if username == "" || email == "" {
+		return nil, fmt.Errorf("用户名和邮箱不能为空")
+	}
+	if role == "" {
+		role = "user"
+	}
+	cloudType = NormalizeCloudType(cloudType)
+
+	if err := ValidateStrongPassword(password); err != nil {
+		return nil, err
+	}
+
+	var count int64
+	if err := model.DB.Model(&model.User{}).Where("username = ?", username).Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("检查用户名失败: %w", err)
+	}
+	if count > 0 {
+		return nil, fmt.Errorf("用户名 %s 已存在", username)
+	}
+	model.DB.Unscoped().Where("username = ? AND deleted_at IS NOT NULL", username).Delete(&model.User{})
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("密码加密失败: %w", err)
+	}
+
+	now := time.Now()
+	loginVerifiedUntil := now.Add(LoginVerificationWindow)
+	user := &model.User{
+		Username:             username,
+		PasswordHash:         string(hashedPassword),
+		Email:                email,
+		Role:                 role,
+		CloudType:            cloudType,
+		Status:               UserStatusActive,
+		EmailVerifiedAt:      &now,
+		LoginVerifiedUntil:   &loginVerifiedUntil,
+		MaxCPU:               maxCPU,
+		MaxMemory:            maxMemory,
+		MaxDisk:              maxDisk,
+		MaxVM:                maxVM,
+		MaxStorage:           maxStorage,
+		MaxRuntimeHours:      maxRuntimeHours,
+		EnablePortForward:    enablePortForward,
+		MaxPortForwards:      maxPortForwards,
+		MaxSnapshots:         maxSnapshots,
+		MaxBandwidthUp:       maxBandwidthUp,
+		MaxBandwidthDown:     maxBandwidthDown,
+		MaxTrafficDown:       maxTrafficDown,
+		MaxTrafficUp:         maxTrafficUp,
+		MaxPublicIPs:         maxPublicIPs,
+	}
+
+	if err := model.DB.Create(user).Error; err != nil {
+		return nil, fmt.Errorf("创建用户失败: %w", err)
+	}
+
+	// 创建系统用户和目录资源
+	if err := provisionSystemUserResources(user, password); err != nil {
+		model.DB.Delete(user)
+		return nil, err
+	}
+
+	if role == "user" && !IsLightweightCloudType(cloudType) {
+		if _, err := EnsureDefaultSecurityGroup(user.Username); err != nil {
+			model.DB.Delete(user)
+			return nil, err
+		}
+		if _, err := EnsureDefaultVPCSwitch(user.Username); err != nil {
+			model.DB.Delete(user)
+			return nil, err
+		}
+	}
+
+	return user, nil
 }
 
 // NeedsLoginVerification 判断是否需要登录期验证
@@ -514,6 +649,10 @@ func NeedsLoginVerification(user *model.User) bool {
 		return false
 	}
 	if user.Role == "admin" {
+		// 管理员跳过了安全初始化，不需要2FA登录验证
+		if user.BootstrapSkipped {
+			return false
+		}
 		return true
 	}
 	if user.LoginVerifiedUntil == nil {

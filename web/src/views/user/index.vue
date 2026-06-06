@@ -366,12 +366,23 @@
 
     <!-- 新增用户对话框 -->
     <el-dialog title="新增用户" v-model="createVisible" width="800px">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+      <el-form :model="form" :rules="createRules" ref="formRef" label-width="100px">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" />
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="form.email" />
+        </el-form-item>
+        <!-- SMTP 未配置时，需要填写初始密码 -->
+        <el-form-item v-if="!smtpConfigured" label="初始密码" prop="password">
+          <el-input v-model="form.password" type="password" show-password placeholder="为用户设置初始密码" />
+          <div class="form-tip">
+            <el-icon><Warning /></el-icon>
+            SMTP 未配置，用户将直接使用此密码登录，无需邮件邀请。
+          </div>
+        </el-form-item>
+        <el-form-item v-if="!smtpConfigured" label="确认密码" prop="confirmPassword">
+          <el-input v-model="form.confirmPassword" type="password" show-password placeholder="请再次输入密码" />
         </el-form-item>
         <el-form-item label="角色" prop="role">
           <el-select v-model="form.role">
@@ -716,9 +727,15 @@ import {
 import { getVmList } from '@/api/vm'
 import { getVPCSwitches } from '@/api/vpc'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Warning } from '@element-plus/icons-vue'
 import QuotaForm from '@/components/QuotaForm.vue'
 import VmForm from '@/components/VmForm.vue'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+
+// SMTP 是否已配置
+const smtpConfigured = computed(() => userStore.security?.smtp_configured === true)
 
 const tableData = ref([])
 const loading = ref(false)
@@ -732,7 +749,7 @@ const submitLoading = ref(false)
 const formRef = ref(null)
 
 const form = reactive({
-  username: '', email: '', role: 'user',
+  username: '', email: '', password: '', confirmPassword: '', role: 'user',
   cloud_type: 'elastic',
   dedicated_vpc_switch_id: null,
   max_cpu: 4, max_memory: 8, max_disk: 100, max_vm: 5, max_storage: 10, max_runtime_hours: 0,
@@ -746,9 +763,36 @@ const form = reactive({
   lightweight_vm_source: 'existing',
   lightweight_existing_vms: []
 })
-const rules = {
+const createRules = reactive({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }]
+})
+
+// SMTP 未配置时动态添加密码规则
+const smtpNotConfiguredRules = {
+  password: [
+    { required: true, message: '请输入初始密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (!value) { callback(new Error('请输入初始密码')); return }
+        if (value.length < 12) { callback(new Error('密码长度不能少于12位')); return }
+        const pattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*_\-+=?])[A-Za-z0-9!@#$%^&*_\-+=?]+$/
+        if (!pattern.test(value)) { callback(new Error('密码必须包含大小写字母、数字和符号')); return }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== form.password) { callback(new Error('两次输入的密码不一致')); return }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ]
 }
 
 // 配额编辑
@@ -1028,6 +1072,8 @@ onMounted(() => {
 const handleCreate = () => {
   form.username = ''
   form.email = ''
+  form.password = ''
+  form.confirmPassword = ''
   form.role = 'user'
   form.cloud_type = 'elastic'
   form.dedicated_vpc_switch_id = null
@@ -1051,6 +1097,14 @@ const handleCreate = () => {
   existingVMQuotaData.value = []
   allVMs.value = []
   createVisible.value = true
+  // 动态设置密码验证规则
+  if (!smtpConfigured.value) {
+    createRules.password = smtpNotConfiguredRules.password
+    createRules.confirmPassword = smtpNotConfiguredRules.confirmPassword
+  } else {
+    delete createRules.password
+    delete createRules.confirmPassword
+  }
   fetchAllVMs()
 }
 
@@ -1071,6 +1125,7 @@ const submitCreate = async () => {
       submitLoading.value = true
       try {
         const payload = { ...form }
+        delete payload.confirmPassword // 确认密码不发送到后端
         if (payload.cloud_type !== 'lightweight') {
           delete payload.lightweight_vm_registrations
           delete payload.lightweight_existing_vms
@@ -1547,6 +1602,15 @@ const handleResetTraffic = async (row) => {
   margin-left: 10px;
   color: #909399;
   font-size: 12px;
+}
+
+.form-tip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
 }
 
 /* ===== 默认隐藏移动卡片（必须在 @media 之前） ===== */

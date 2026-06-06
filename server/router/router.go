@@ -59,6 +59,7 @@ func Setup() *gin.Engine {
 			secureAuth.POST("/2fa/enable", handler.EnableTOTP)
 			secureAuth.POST("/2fa/disable", handler.DisableTOTP)
 			secureAuth.POST("/2fa/recovery/regen", handler.RegenRecoveryCodes)
+			secureAuth.POST("/skip-bootstrap", handler.SkipBootstrap) // 管理员跳过安全初始化
 		}
 
 		// ==================== 高风险验证 ====================
