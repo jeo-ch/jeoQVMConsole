@@ -1,5 +1,5 @@
 <template>
-  <div class="vm-detail-container" v-loading="loading">
+  <div class="vm-detail-container">
     <!-- 顶部导航栏 -->
     <div class="detail-top-bar">
       <el-button link class="back-link" @click="$router.back()">
@@ -16,522 +16,585 @@
       </div>
     </div>
 
-    <!-- ① Hero 状态横幅 -->
-    <section class="hero-banner" :class="'hero-' + heroStatusClass">
-      <div class="hero-status-indicator" :class="vmInfo.status === 'running' ? 'running' : (vmInfo.status === 'paused' ? 'paused' : 'stopped')">
-        <VmStatusIcons :status="vmInfo.status || 'shut off'" :size="32" />
-      </div>
-      <div class="hero-info">
-        <h1 class="hero-vm-name">{{ vmInfo.name || vmName }}</h1>
-        <div class="hero-meta">
-          <el-tag :type="statusTagType(vmInfo.status)" effect="dark" round size="small">
-            {{ statusText(vmInfo.status) }}
-          </el-tag>
-          <el-tag v-if="vmInfo.locked" type="warning" effect="dark" round size="small" style="margin-left: 6px;">
-            <el-icon style="margin-right: 2px; vertical-align: middle;"><Lock /></el-icon> 已锁定
-          </el-tag>
-          <span class="meta-divider"></span>
-          <span class="meta-item">
-            <el-icon><Cpu /></el-icon> {{ vmInfo.vcpu }} 核
-          </span>
-          <span class="meta-divider"></span>
-          <span class="meta-item">
-            <el-icon><Odometer /></el-icon> {{ formatMemory(vmInfo.memory) }}
-            <el-tooltip v-if="vmInfo.memory_dynamic_enabled" :content="memoryTooltipText" placement="top" effect="dark">
-              <el-tag size="small" :type="memoryTagType" effect="plain" class="dynamic-mem-tag">{{ memoryTagText }}</el-tag>
-            </el-tooltip>
-          </span>
-          <span class="meta-divider"></span>
-          <span class="meta-item">
-            <el-icon><Coin /></el-icon> {{ vmInfo.disk_size || '-' }}
-          </span>
-          <span class="meta-divider"></span>
-          <span class="meta-item">
-            <el-icon><Timer /></el-icon> {{ runtimeSummaryText }}
-          </span>
-          <span class="meta-divider"></span>
-          <span class="meta-item hero-ip-label">
-            <el-icon><Location /></el-icon> IP
-            <el-tooltip :content="ipTooltipText" :disabled="!ipTooltipText" placement="top" effect="dark">
-              <code class="hero-ip-value" :class="{ 'ip-unreachable': ipTooltipText }">{{ ipDisplayText }}</code>
-            </el-tooltip>
-          </span>
-          <span v-if="publicIPs.length" class="meta-divider"></span>
-          <span v-if="publicIPs.length" class="meta-item hero-ip-label">
-            <el-icon><Location /></el-icon> 公网
-            <span class="hero-public-ip-list">
-              <code v-for="item in publicIPs" :key="item.public_ip" class="hero-ip-value public-ip-value">{{ item.public_ip }}</code>
+    <!-- ① Hero 状态横幅（始终优先渲染，不等待 SSE 数据） -->
+      <section class="hero-banner" :class="'hero-' + heroStatusClass">
+        <div class="hero-status-indicator" :class="vmInfo.status === 'running' ? 'running' : (vmInfo.status === 'paused' ? 'paused' : 'stopped')">
+          <VmStatusIcons :status="vmInfo.status || 'shut off'" :size="32" />
+        </div>
+        <div class="hero-info">
+          <h1 class="hero-vm-name">{{ vmInfo.name || vmName }}</h1>
+          <div class="hero-meta">
+            <el-tag :type="statusTagType(vmInfo.status)" effect="dark" round size="small">
+              {{ statusText(vmInfo.status) }}
+            </el-tag>
+            <el-tag v-if="vmInfo.locked" type="warning" effect="dark" round size="small" style="margin-left: 6px;">
+              <el-icon style="margin-right: 2px; vertical-align: middle;"><Lock /></el-icon> 已锁定
+            </el-tag>
+            <span class="meta-divider"></span>
+            <span class="meta-item">
+              <el-icon><Cpu /></el-icon> {{ vmInfo.vcpu }} 核
             </span>
-          </span>
+            <span class="meta-divider"></span>
+            <span class="meta-item">
+              <el-icon><Odometer /></el-icon> {{ formatMemory(vmInfo.memory) }}
+              <el-tooltip v-if="vmInfo.memory_dynamic_enabled" :content="memoryTooltipText" placement="top" effect="dark">
+                <el-tag size="small" :type="memoryTagType" effect="plain" class="dynamic-mem-tag">{{ memoryTagText }}</el-tag>
+              </el-tooltip>
+            </span>
+            <span class="meta-divider"></span>
+            <span class="meta-item">
+              <el-icon><Coin /></el-icon> {{ vmInfo.disk_size || '-' }}
+            </span>
+            <span class="meta-divider"></span>
+            <span class="meta-item">
+              <el-icon><Timer /></el-icon> {{ runtimeSummaryText }}
+            </span>
+            <span class="meta-divider"></span>
+            <span class="meta-item hero-ip-label">
+              <el-icon><Location /></el-icon> IP
+              <el-tooltip :content="ipTooltipText" :disabled="!ipTooltipText" placement="top" effect="dark">
+                <code class="hero-ip-value" :class="{ 'ip-unreachable': ipTooltipText }">{{ ipDisplayText }}</code>
+              </el-tooltip>
+            </span>
+            <span v-if="publicIPs.length" class="meta-divider"></span>
+            <span v-if="publicIPs.length" class="meta-item hero-ip-label">
+              <el-icon><Location /></el-icon> 公网
+              <span class="hero-public-ip-list">
+                <code v-for="item in publicIPs" :key="item.public_ip" class="hero-ip-value public-ip-value">{{ item.public_ip }}</code>
+              </span>
+            </span>
+          </div>
         </div>
-      </div>
-      <div class="hero-power-actions" v-if="vmInfo.status !== 'migrating'">
-        <template v-if="vmInfo.status !== 'running'">
-          <el-popconfirm :title="startConfirmText" placement="bottom" @confirm="handleAction('start')">
-            <template #reference>
-              <el-button type="success" :loading="operating" icon="VideoPlay" class="power-btn">{{ startActionText }}</el-button>
-            </template>
-          </el-popconfirm>
-          <el-popconfirm v-if="vmInfo.status === 'paused'" title="确定要重置虚拟机吗？这相当于硬重启，适用于无法继续启动的暂停状态。" placement="bottom" @confirm="handleAction('reset')">
-            <template #reference>
-              <el-button type="danger" :loading="operating" icon="RefreshRight" class="power-btn">重置</el-button>
-            </template>
-          </el-popconfirm>
+        <div class="hero-power-actions" v-if="vmInfo.status !== 'migrating'">
+          <template v-if="vmInfo.status !== 'running'">
+            <el-popconfirm :title="startConfirmText" placement="bottom" @confirm="handleAction('start')">
+              <template #reference>
+                <el-button type="success" :loading="operating" icon="VideoPlay" class="power-btn">{{ startActionText }}</el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm v-if="vmInfo.status === 'paused'" title="确定要重置虚拟机吗？这相当于硬重启，适用于无法继续启动的暂停状态。" placement="bottom" @confirm="handleAction('reset')">
+              <template #reference>
+                <el-button type="danger" :loading="operating" icon="RefreshRight" class="power-btn">重置</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+          <template v-else>
+            <el-popconfirm title="确定要重启吗？" placement="bottom" @confirm="handleAction('reboot')">
+              <template #reference>
+                <el-button type="warning" :loading="operating" icon="Refresh" class="power-btn">重启</el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm v-if="vmInfo.locked" title="⚠️ 虚拟机已锁定，关机可能影响正在运行的服务，确定要关机吗？" placement="bottom" @confirm="handleAction('shutdown')">
+              <template #reference>
+                <el-button plain :loading="operating" icon="SwitchButton" class="power-btn" style="border-color: #E6A23C; color: #E6A23C;">关机（已锁定）</el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm v-else title="确定要关机吗？" placement="bottom" @confirm="handleAction('shutdown')">
+              <template #reference>
+                <el-button plain :loading="operating" icon="SwitchButton" class="power-btn">关机</el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm v-if="vmInfo.locked" title="⚠️ 虚拟机已锁定，强制断电可能影响正在运行的服务，确定要断电吗？" placement="bottom" @confirm="handleAction('destroy')">
+              <template #reference>
+                <el-button :loading="operating" icon="CircleClose" class="power-btn" style="border-color: #F56C6C; color: #F56C6C;">强制断电（已锁定）</el-button>
+              </template>
+            </el-popconfirm>
+            <el-popconfirm v-else title="确定要断电吗？" placement="bottom" @confirm="handleAction('destroy')">
+              <template #reference>
+                <el-button type="danger" :loading="operating" icon="CircleClose" class="power-btn">强制断电</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </div>
+        <!-- 锁定/解锁操作 -->
+        <div v-if="!isLightweight && vmInfo.status !== 'migrating'" class="hero-lock-action">
+          <template v-if="vmInfo.locked">
+            <el-popconfirm title="解除锁定需要进行二次验证，确定要解锁吗？" placement="bottom" @confirm="handleLockAction('unlock')">
+              <template #reference>
+                <el-button type="warning" plain size="small" icon="Unlock">解除锁定</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+          <template v-else>
+            <el-popconfirm title="锁定后虚拟机将无法删除，关机需二次确认，确定要锁定吗？" placement="bottom" @confirm="handleLockAction('lock')">
+              <template #reference>
+                <el-button plain size="small" icon="Lock">锁定虚拟机</el-button>
+              </template>
+            </el-popconfirm>
+          </template>
+        </div>
+        <el-alert
+          v-else
+          type="warning"
+          title="虚拟机正在迁移中，暂不能执行电源、快照、磁盘、救援或密码重置等操作"
+          :closable="false"
+          class="migration-alert"
+        />
+      </section>
+
+    <!-- Hero 下方区域：SSE 数据到达后逐步加载 -->
+    <template v-if="pageReady">
+
+      <!-- ② 实时资源概览条（仅运行中显示） -->
+      <section v-if="vmInfo.status === 'running'" class="live-stats-strip" id="stats">
+        <div class="live-stat-card cpu-card">
+          <div class="live-stat-icon cpu-icon">
+            <el-icon><Cpu /></el-icon>
+          </div>
+          <div class="live-stat-info">
+            <div class="live-stat-label">CPU 使用率</div>
+            <div class="live-stat-value">{{ cpuPercentStr }}</div>
+            <div class="mini-progress"><div class="mini-progress-fill cpu-fill" :style="{ width: cpuPercentStr }"></div></div>
+          </div>
+        </div>
+        <div class="live-stat-card mem-card">
+          <div class="live-stat-icon mem-icon">
+            <el-icon><Odometer /></el-icon>
+          </div>
+          <div class="live-stat-info">
+            <div class="live-stat-label">内存使用率</div>
+            <div class="live-stat-value">{{ memPercentStr }}</div>
+            <div class="mini-progress"><div class="mini-progress-fill mem-fill" :style="{ width: memPercentStr }"></div></div>
+          </div>
+        </div>
+        <div class="live-stat-card net-card">
+          <div class="live-stat-icon net-icon">
+            <el-icon><Connection /></el-icon>
+          </div>
+          <div class="live-stat-info">
+            <div class="live-stat-label">网络流量</div>
+            <div class="live-stat-value">{{ netRxStr }}</div>
+            <div class="live-stat-sub">出 {{ netTxStr }}</div>
+          </div>
+        </div>
+        <div class="live-stat-card disk-card">
+          <div class="live-stat-icon disk-icon">
+            <el-icon><Coin /></el-icon>
+          </div>
+          <div class="live-stat-info">
+            <div class="live-stat-label">磁盘 IO</div>
+            <div class="live-stat-value">{{ diskRdStr }}</div>
+            <div class="live-stat-sub">写 {{ diskWrStr }}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ③ 功能管理 Tabs -->
+      <section class="function-tabs-section" id="functions">
+        <div class="tabs-header">
+          <el-tabs v-model="activeTab" class="custom-tabs" @tab-click="handleTabClick">
+            <el-tab-pane name="snapshot">
+              <template #label>
+                <span class="tab-label-text">
+                  <el-icon><PictureFilled /></el-icon> 快照管理
+                  <el-tag v-if="snapshotQuotaText" size="small" type="info" effect="plain" class="tab-quota-tag">{{ snapshotQuotaText }}</el-tag>
+                </span>
+              </template>
+              <SnapshotList :vm-name="vmName" :vm-status="vmInfo.status" @quota-change="handleSnapshotQuotaChange" />
+            </el-tab-pane>
+            <el-tab-pane name="network" lazy>
+              <template #label>
+                <span class="tab-label-text">
+                  <el-icon><Connection /></el-icon> 网络管理
+                </span>
+              </template>
+              <NetworkList :vm-name="vmName" />
+            </el-tab-pane>
+            <el-tab-pane v-if="!isLightweight" name="schedule" lazy>
+              <template #label>
+                <span class="tab-label-text">
+                  <el-icon><AlarmClock /></el-icon> 定时任务
+                </span>
+              </template>
+              <VmSchedulePanel :vm-name="vmName" />
+            </el-tab-pane>
+            <el-tab-pane name="vnc" lazy>
+              <template #label>
+                <span class="tab-label-text">
+                  <el-icon><Monitor /></el-icon> VNC 控制台
+                </span>
+              </template>
+              <VncConsole :vm-name="vmName" :vm-status="vmInfo.status" :guest-password="vmInfo.credential?.password || ''" />
+            </el-tab-pane>
+            <el-tab-pane v-if="showDeveloperTab" name="monitor" lazy>
+              <template #label>
+                <span class="tab-label-text">
+                  <el-icon><Operation /></el-icon> 开发者监视器
+                </span>
+              </template>
+              <VmMonitorPanel :vm-name="vmName" :vm-status="vmInfo.status" />
+            </el-tab-pane>
+          </el-tabs>
+          <el-button v-if="!isLightweight" link type="primary" class="dev-toggle-link" @click="toggleDeveloperTab">
+            {{ developerTabButtonText }}
+          </el-button>
+        </div>
+      </section>
+
+      <!-- ④ 监控图表区（按需加载） -->
+      <section ref="monitorSectionRef" class="monitor-section" id="monitor">
+        <div class="section-title-bar">
+          <h3 class="section-title">
+            <el-icon><TrendCharts /></el-icon> 监控图表
+          </h3>
+        </div>
+        <template v-if="showMonitor">
+          <ResourceCharts type="vm" :name="vmName" :status="vmInfo.status" :externalStats="vmInfo.stats" :disablePolling="true" />
         </template>
-        <template v-else>
-          <el-popconfirm title="确定要重启吗？" placement="bottom" @confirm="handleAction('reboot')">
-            <template #reference>
-              <el-button type="warning" :loading="operating" icon="Refresh" class="power-btn">重启</el-button>
-            </template>
-          </el-popconfirm>
-          <el-popconfirm v-if="vmInfo.locked" title="⚠️ 虚拟机已锁定，关机可能影响正在运行的服务，确定要关机吗？" placement="bottom" @confirm="handleAction('shutdown')">
-            <template #reference>
-              <el-button plain :loading="operating" icon="SwitchButton" class="power-btn" style="border-color: #E6A23C; color: #E6A23C;">关机（已锁定）</el-button>
-            </template>
-          </el-popconfirm>
-          <el-popconfirm v-else title="确定要关机吗？" placement="bottom" @confirm="handleAction('shutdown')">
-            <template #reference>
-              <el-button plain :loading="operating" icon="SwitchButton" class="power-btn">关机</el-button>
-            </template>
-          </el-popconfirm>
-          <el-popconfirm v-if="vmInfo.locked" title="⚠️ 虚拟机已锁定，强制断电可能影响正在运行的服务，确定要断电吗？" placement="bottom" @confirm="handleAction('destroy')">
-            <template #reference>
-              <el-button :loading="operating" icon="CircleClose" class="power-btn" style="border-color: #F56C6C; color: #F56C6C;">强制断电（已锁定）</el-button>
-            </template>
-          </el-popconfirm>
-          <el-popconfirm v-else title="确定要断电吗？" placement="bottom" @confirm="handleAction('destroy')">
-            <template #reference>
-              <el-button type="danger" :loading="operating" icon="CircleClose" class="power-btn">强制断电</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </div>
-      <!-- 锁定/解锁操作 -->
-      <div v-if="!isLightweight && vmInfo.status !== 'migrating'" class="hero-lock-action">
-        <template v-if="vmInfo.locked">
-          <el-popconfirm title="解除锁定需要进行二次验证，确定要解锁吗？" placement="bottom" @confirm="handleLockAction('unlock')">
-            <template #reference>
-              <el-button type="warning" plain size="small" icon="Unlock">解除锁定</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-        <template v-else>
-          <el-popconfirm title="锁定后虚拟机将无法删除，关机需二次确认，确定要锁定吗？" placement="bottom" @confirm="handleLockAction('lock')">
-            <template #reference>
-              <el-button plain size="small" icon="Lock">锁定虚拟机</el-button>
-            </template>
-          </el-popconfirm>
-        </template>
-      </div>
-      <el-alert
-        v-else
-        type="warning"
-        title="虚拟机正在迁移中，暂不能执行电源、快照、磁盘、救援或密码重置等操作"
-        :closable="false"
-        class="migration-alert"
-      />
-    </section>
+        <div v-else class="lazy-section-placeholder">
+          <el-skeleton :rows="8" animated />
+        </div>
+      </section>
 
-    <!-- ② 实时资源概览条（仅运行中显示） -->
-    <section v-if="vmInfo.status === 'running'" class="live-stats-strip" id="stats">
-      <div class="live-stat-card cpu-card">
-        <div class="live-stat-icon cpu-icon">
-          <el-icon><Cpu /></el-icon>
-        </div>
-        <div class="live-stat-info">
-          <div class="live-stat-label">CPU 使用率</div>
-          <div class="live-stat-value">{{ cpuPercentStr }}</div>
-          <div class="mini-progress"><div class="mini-progress-fill cpu-fill" :style="{ width: cpuPercentStr }"></div></div>
-        </div>
-      </div>
-      <div class="live-stat-card mem-card">
-        <div class="live-stat-icon mem-icon">
-          <el-icon><Odometer /></el-icon>
-        </div>
-        <div class="live-stat-info">
-          <div class="live-stat-label">内存使用率</div>
-          <div class="live-stat-value">{{ memPercentStr }}</div>
-          <div class="mini-progress"><div class="mini-progress-fill mem-fill" :style="{ width: memPercentStr }"></div></div>
-        </div>
-      </div>
-      <div class="live-stat-card net-card">
-        <div class="live-stat-icon net-icon">
-          <el-icon><Connection /></el-icon>
-        </div>
-        <div class="live-stat-info">
-          <div class="live-stat-label">网络流量</div>
-          <div class="live-stat-value">{{ netRxStr }}</div>
-          <div class="live-stat-sub">出 {{ netTxStr }}</div>
-        </div>
-      </div>
-      <div class="live-stat-card disk-card">
-        <div class="live-stat-icon disk-icon">
-          <el-icon><Coin /></el-icon>
-        </div>
-        <div class="live-stat-info">
-          <div class="live-stat-label">磁盘 IO</div>
-          <div class="live-stat-value">{{ diskRdStr }}</div>
-          <div class="live-stat-sub">写 {{ diskWrStr }}</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ③ 功能管理 Tabs -->
-    <section class="function-tabs-section" id="functions">
-      <div class="tabs-header">
-        <el-tabs v-model="activeTab" class="custom-tabs" @tab-click="handleTabClick">
-          <el-tab-pane name="snapshot">
-            <template #label>
-              <span class="tab-label-text">
-                <el-icon><PictureFilled /></el-icon> 快照管理
-                <el-tag v-if="snapshotQuotaText" size="small" type="info" effect="plain" class="tab-quota-tag">{{ snapshotQuotaText }}</el-tag>
-              </span>
-            </template>
-            <SnapshotList :vm-name="vmName" :vm-status="vmInfo.status" @quota-change="handleSnapshotQuotaChange" />
-          </el-tab-pane>
-          <el-tab-pane name="network" lazy>
-            <template #label>
-              <span class="tab-label-text">
-                <el-icon><Connection /></el-icon> 网络管理
-              </span>
-            </template>
-            <NetworkList :vm-name="vmName" />
-          </el-tab-pane>
-          <el-tab-pane v-if="!isLightweight" name="schedule" lazy>
-            <template #label>
-              <span class="tab-label-text">
-                <el-icon><AlarmClock /></el-icon> 定时任务
-              </span>
-            </template>
-            <VmSchedulePanel :vm-name="vmName" />
-          </el-tab-pane>
-          <el-tab-pane name="vnc" lazy>
-            <template #label>
-              <span class="tab-label-text">
-                <el-icon><Monitor /></el-icon> VNC 控制台
-              </span>
-            </template>
-            <VncConsole :vm-name="vmName" :vm-status="vmInfo.status" :guest-password="vmInfo.credential?.password || ''" />
-          </el-tab-pane>
-          <el-tab-pane v-if="showDeveloperTab" name="monitor" lazy>
-            <template #label>
-              <span class="tab-label-text">
-                <el-icon><Operation /></el-icon> 开发者监视器
-              </span>
-            </template>
-            <VmMonitorPanel :vm-name="vmName" :vm-status="vmInfo.status" />
-          </el-tab-pane>
-        </el-tabs>
-        <el-button v-if="!isLightweight" link type="primary" class="dev-toggle-link" @click="toggleDeveloperTab">
-          {{ developerTabButtonText }}
-        </el-button>
-      </div>
-    </section>
-
-    <!-- ④ 监控图表区 -->
-    <section class="monitor-section" id="monitor">
-      <div class="section-title-bar">
-        <h3 class="section-title">
-          <el-icon><TrendCharts /></el-icon> 监控图表
-        </h3>
-      </div>
-      <ResourceCharts type="vm" :name="vmName" :status="vmInfo.status" :externalStats="vmInfo.stats" :disablePolling="true" />
-    </section>
-
-    <!-- ⑤ 信息卡片区 -->
-    <section class="info-grid" id="config">
-      <!-- 左列 -->
-      <div class="info-column">
-        <div class="info-card">
-          <div class="info-card-header">
-            <div class="card-icon config-icon">
-              <el-icon><Setting /></el-icon>
-            </div>
-            <span class="card-title">基本配置</span>
-          </div>
-          <div class="info-card-body">
-            <div class="info-row">
-              <span class="info-label">CPU</span>
-              <span class="info-value">
-                <span class="info-tag tag-primary">{{ vmInfo.vcpu }} 核</span>
-                <span v-if="vmInfo.cpu_limit_percent > 0" class="sub-label">限制 {{ vmInfo.cpu_limit_percent }}%</span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">
-                内存
-                <span v-if="vmInfo.memory_dynamic_enabled" class="sub-label">动态</span>
-              </span>
-              <span class="info-value">
-                <span>{{ formatMemory(vmInfo.memory) }}</span>
-                <el-tooltip v-if="vmInfo.memory_dynamic_enabled" :content="memoryTooltipText" placement="top" effect="dark">
-                  <span class="info-tag" :class="memoryTagType === 'warning' ? 'tag-warning' : 'tag-success'">{{ memoryTagText }}</span>
-                </el-tooltip>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">系统磁盘</span>
-              <span class="info-value mono">{{ vmInfo.disk_size || '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">操作系统</span>
-              <span class="info-value">{{ vmInfo.os_type || '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">模板来源</span>
-              <span class="info-value">{{ vmInfo.template || '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">备注</span>
-              <span class="info-value remark-info-value">
-                <span class="remark-text">{{ vmInfo.remark || '-' }}</span>
-                <el-button
-                  v-if="!isLightweight"
-                  link
-                  type="primary"
-                  :disabled="vmInfo.status === 'migrating'"
-                  @click="handleEditRemark"
-                >
-                  编辑备注
-                </el-button>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">连续运行</span>
-              <span class="info-value">
-                <span>{{ runtimeSummaryText }}</span>
-                <span v-if="vmInfo.continuous_running_since" class="sub-label runtime-sub-label">
-                  自 {{ vmInfo.continuous_running_since }}
-                </span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="info-card credential-card">
-          <div class="info-card-header">
-            <div class="card-icon credential-icon">
-              <el-icon><Lock /></el-icon>
-            </div>
-            <span class="card-title">登录凭证</span>
-          </div>
-          <div class="info-card-body">
-            <div class="info-row">
-              <span class="info-label">用户名</span>
-              <span class="info-value">
-                <span v-if="vmInfo.credential?.username" class="credential-value-wrap">
-                  <code class="credential-code">{{ vmInfo.credential.username }}</code>
-                  <el-button link type="primary" size="small" @click="copyCredentialField(vmInfo.credential.username, '账号')">复制</el-button>
-                </span>
-                <span v-else>-</span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">密码</span>
-              <span class="info-value">
-                <span v-if="vmInfo.credential?.password" class="credential-value-wrap">
-                  <el-input
-                    :model-value="vmInfo.credential.password"
-                    type="password"
-                    show-password
-                    readonly
-                    size="small"
-                    class="credential-input"
-                  />
-                  <el-button link type="primary" size="small" @click="copyCredentialField(vmInfo.credential.password, '密码')">复制</el-button>
-                </span>
-                <span v-else>-</span>
-              </span>
-            </div>
-            <div class="info-row info-row-highlight">
-              <span class="info-label highlight-label">⚡ 离线重置</span>
-              <span class="info-value">
-                <el-button
-                  type="warning"
-                  size="small"
-                  plain
-                  :disabled="!canResetGuestPassword"
-                  @click="openResetPasswordDialog"
-                >重置密码</el-button>
-              </span>
-            </div>
-            <div v-if="!isLightweight" class="info-row info-row-highlight">
-              <span class="info-label highlight-label">🧨 重装系统</span>
-              <span class="info-value">
-                <el-button
-                  type="danger"
-                  size="small"
-                  plain
-                  :disabled="vmInfo.status === 'migrating'"
-                  @click="openReinstallDialog"
-                >提交重装</el-button>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右列 -->
-      <div class="info-column">
-        <div class="info-card">
-          <div class="info-card-header">
-            <div class="card-icon network-icon">
-              <el-icon><Connection /></el-icon>
-            </div>
-            <span class="card-title">网络与连接</span>
-          </div>
-          <div class="info-card-body">
-            <div class="info-row">
-              <span class="info-label">IP 地址</span>
-              <span class="info-value mono ip-highlight">
-                <el-tooltip :content="ipTooltipText" :disabled="!ipTooltipText" placement="top" effect="dark">
-                  <span :class="{ 'ip-unreachable': ipTooltipText }">{{ ipDisplayText }}</span>
-                </el-tooltip>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">公网 IP</span>
-              <span class="info-value public-ip-list">
-                <template v-if="publicIPs.length">
-                  <el-tag
-                    v-for="item in publicIPs"
-                    :key="item.public_ip"
-                    size="small"
-                    effect="plain"
-                    class="public-ip-tag"
-                  >
-                    {{ item.public_ip }} · {{ item.mode_label || item.mode }}
-                  </el-tag>
-                </template>
-                <span v-else>-</span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">VNC 端口</span>
-              <span class="info-value mono">{{ vmInfo.vnc_port || '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">网络接口</span>
-              <span class="info-value">{{ vmInfo.network || '-' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">显示设备</span>
-              <span class="info-value">{{ vmInfo.video_model || '-' }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="info-card">
-          <div class="info-card-header">
-            <div class="card-icon advanced-icon">
-              <el-icon><Operation /></el-icon>
-            </div>
-            <span class="card-title">高级设置</span>
-          </div>
-          <div class="info-card-body">
-            <div class="info-row">
-              <span class="info-label">开机自启</span>
-              <span class="info-value">
-                <span class="info-tag" :class="vmInfo.autostart ? 'tag-success' : 'tag-info'">
-                  {{ vmInfo.autostart ? '已启用' : '已禁用' }}
-                </span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">
-                启动冻结
-                <span class="sub-label">开发者</span>
-              </span>
-              <span class="info-value">
-                <el-tooltip
-                  v-if="vmInfo.freeze"
-                  content="已开启：启动时冻结 CPU。虚拟机启动后会先进入暂停态，可在开发者监视器执行 c 继续。"
-                  placement="top"
-                >
-                  <span class="info-tag tag-warning">已开启</span>
-                </el-tooltip>
-                <span v-else class="info-tag tag-info">未开启</span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">APIC</span>
-              <span class="info-value">
-                <span class="info-tag" :class="vmInfo.apic ? 'tag-success' : 'tag-warning'">
-                  {{ vmInfo.apic ? '已启用' : '已关闭' }}
-                </span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">PAE</span>
-              <span class="info-value">
-                <span class="info-tag" :class="vmInfo.pae ? 'tag-success' : 'tag-info'">
-                  {{ vmInfo.pae ? '已启用' : '已关闭' }}
-                </span>
-              </span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">CPU 限制</span>
-              <span class="info-value">{{ vmInfo.cpu_limit_percent > 0 ? `${vmInfo.cpu_limit_percent}%` : '无限制' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">CPU 亲和性</span>
-              <span class="info-value">{{ vmInfo.cpu_affinity || '未设置' }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">内存策略</span>
-              <span class="info-value">{{ vmInfo.memory_backend === 'virtio_mem' ? 'virtio-mem 弹性' : 'Balloon 动态' }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 磁盘 IOPS 限制信息 -->
-        <div class="info-card" v-if="!isLightweight">
-          <div class="info-card-header">
-            <div class="card-icon disk-iops-icon">
-              <el-icon><Coin /></el-icon>
-            </div>
-            <span class="card-title">磁盘 IOPS 限制</span>
-            <el-button link size="small" type="primary" class="card-refresh-btn" @click="loadDiskIOPSList" :loading="diskIopsLoading">刷新</el-button>
-          </div>
-          <div class="info-card-body" v-loading="diskIopsLoading">
-            <template v-if="diskIopsList.length > 0">
-              <div class="disk-iops-table">
-                <div class="disk-iops-header">
-                  <span class="disk-iops-col device-col">设备</span>
-                  <span class="disk-iops-col capacity-col">容量</span>
-                  <span class="disk-iops-col iops-col">总IOPS</span>
-                  <span class="disk-iops-col iops-col">读IOPS</span>
-                  <span class="disk-iops-col iops-col">写IOPS</span>
+      <!-- ⑤ 信息卡片区（按需加载） -->
+      <section ref="infoSectionRef" class="info-grid" id="config">
+        <template v-if="showInfoCards">
+          <!-- 左列 -->
+          <div class="info-column">
+            <div class="info-card">
+              <div class="info-card-header">
+                <div class="card-icon config-icon">
+                  <el-icon><Setting /></el-icon>
                 </div>
-                <div v-for="disk in diskIopsList" :key="disk.device" class="disk-iops-row">
-                  <span class="disk-iops-col device-col">
-                    <span class="disk-dev-name">{{ disk.device }}</span>
-                    <span class="disk-dev-bus">({{ disk.bus }})</span>
+                <span class="card-title">基本配置</span>
+              </div>
+              <div class="info-card-body">
+                <div class="info-row">
+                  <span class="info-label">CPU</span>
+                  <span class="info-value">
+                    <span class="info-tag tag-primary">{{ vmInfo.vcpu }} 核</span>
+                    <span v-if="vmInfo.cpu_limit_percent > 0" class="sub-label">限制 {{ vmInfo.cpu_limit_percent }}%</span>
                   </span>
-                  <span class="disk-iops-col capacity-col">{{ disk.capacity_gb ? disk.capacity_gb + ' GB' : '-' }}</span>
-                  <span class="disk-iops-col iops-col">
-                    <span :class="disk.iops_total?.is_set && disk.iops_total?.value > 0 ? 'iops-limited' : 'iops-none'">
-                      {{ disk.iops_total?.is_set && disk.iops_total?.value > 0 ? disk.iops_total.value : '无限制' }}
-                    </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">
+                    内存
+                    <span v-if="vmInfo.memory_dynamic_enabled" class="sub-label">动态</span>
                   </span>
-                  <span class="disk-iops-col iops-col">
-                    <span :class="disk.iops_read?.is_set && disk.iops_read?.value > 0 ? 'iops-limited' : 'iops-none'">
-                      {{ disk.iops_read?.is_set && disk.iops_read?.value > 0 ? disk.iops_read.value : '无限制' }}
-                    </span>
+                  <span class="info-value">
+                    <span>{{ formatMemory(vmInfo.memory) }}</span>
+                    <el-tooltip v-if="vmInfo.memory_dynamic_enabled" :content="memoryTooltipText" placement="top" effect="dark">
+                      <span class="info-tag" :class="memoryTagType === 'warning' ? 'tag-warning' : 'tag-success'">{{ memoryTagText }}</span>
+                    </el-tooltip>
                   </span>
-                  <span class="disk-iops-col iops-col">
-                    <span :class="disk.iops_write?.is_set && disk.iops_write?.value > 0 ? 'iops-limited' : 'iops-none'">
-                      {{ disk.iops_write?.is_set && disk.iops_write?.value > 0 ? disk.iops_write.value : '无限制' }}
+                </div>
+                <div class="info-row">
+                  <span class="info-label">系统磁盘</span>
+                  <span class="info-value mono">{{ vmInfo.disk_size || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">操作系统</span>
+                  <span class="info-value">{{ vmInfo.os_type || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">模板来源</span>
+                  <span class="info-value">{{ vmInfo.template || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">备注</span>
+                  <span class="info-value remark-info-value">
+                    <span class="remark-text">{{ vmInfo.remark || '-' }}</span>
+                    <el-button
+                      v-if="!isLightweight"
+                      link
+                      type="primary"
+                      :disabled="vmInfo.status === 'migrating'"
+                      @click="handleEditRemark"
+                    >
+                      编辑备注
+                    </el-button>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">连续运行</span>
+                  <span class="info-value">
+                    <span>{{ runtimeSummaryText }}</span>
+                    <span v-if="vmInfo.continuous_running_since" class="sub-label runtime-sub-label">
+                      自 {{ vmInfo.continuous_running_since }}
                     </span>
                   </span>
                 </div>
               </div>
-            </template>
-            <div v-else class="disk-iops-empty">暂无磁盘数据</div>
+            </div>
+
+            <div class="info-card credential-card">
+              <div class="info-card-header">
+                <div class="card-icon credential-icon">
+                  <el-icon><Lock /></el-icon>
+                </div>
+                <span class="card-title">登录凭证</span>
+              </div>
+              <div class="info-card-body">
+                <div class="info-row">
+                  <span class="info-label">用户名</span>
+                  <span class="info-value">
+                    <span v-if="vmInfo.credential?.username" class="credential-value-wrap">
+                      <code class="credential-code">{{ vmInfo.credential.username }}</code>
+                      <el-button link type="primary" size="small" @click="copyCredentialField(vmInfo.credential.username, '账号')">复制</el-button>
+                    </span>
+                    <span v-else>-</span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">密码</span>
+                  <span class="info-value">
+                    <span v-if="vmInfo.credential?.password" class="credential-value-wrap">
+                      <el-input
+                        :model-value="vmInfo.credential.password"
+                        type="password"
+                        show-password
+                        readonly
+                        size="small"
+                        class="credential-input"
+                      />
+                      <el-button link type="primary" size="small" @click="copyCredentialField(vmInfo.credential.password, '密码')">复制</el-button>
+                    </span>
+                    <span v-else>-</span>
+                  </span>
+                </div>
+                <div class="info-row info-row-highlight">
+                  <span class="info-label highlight-label">⚡ 离线重置</span>
+                  <span class="info-value">
+                    <el-button
+                      type="warning"
+                      size="small"
+                      plain
+                      :disabled="!canResetGuestPassword"
+                      @click="openResetPasswordDialog"
+                    >重置密码</el-button>
+                  </span>
+                </div>
+                <div v-if="!isLightweight" class="info-row info-row-highlight">
+                  <span class="info-label highlight-label">🧨 重装系统</span>
+                  <span class="info-value">
+                    <el-button
+                      type="danger"
+                      size="small"
+                      plain
+                      :disabled="vmInfo.status === 'migrating'"
+                      @click="openReinstallDialog"
+                    >提交重装</el-button>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <!-- 右列 -->
+          <div class="info-column">
+            <div class="info-card">
+              <div class="info-card-header">
+                <div class="card-icon network-icon">
+                  <el-icon><Connection /></el-icon>
+                </div>
+                <span class="card-title">网络与连接</span>
+              </div>
+              <div class="info-card-body">
+                <div class="info-row">
+                  <span class="info-label">IP 地址</span>
+                  <span class="info-value mono ip-highlight">
+                    <el-tooltip :content="ipTooltipText" :disabled="!ipTooltipText" placement="top" effect="dark">
+                      <span :class="{ 'ip-unreachable': ipTooltipText }">{{ ipDisplayText }}</span>
+                    </el-tooltip>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">公网 IP</span>
+                  <span class="info-value public-ip-list">
+                    <template v-if="publicIPs.length">
+                      <el-tag
+                        v-for="item in publicIPs"
+                        :key="item.public_ip"
+                        size="small"
+                        effect="plain"
+                        class="public-ip-tag"
+                      >
+                        {{ item.public_ip }} · {{ item.mode_label || item.mode }}
+                      </el-tag>
+                    </template>
+                    <span v-else>-</span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">VNC 端口</span>
+                  <span class="info-value mono">{{ vmInfo.vnc_port || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">网络接口</span>
+                  <span class="info-value">{{ vmInfo.network || '-' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">显示设备</span>
+                  <span class="info-value">{{ vmInfo.video_model || '-' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <div class="info-card-header">
+                <div class="card-icon advanced-icon">
+                  <el-icon><Operation /></el-icon>
+                </div>
+                <span class="card-title">高级设置</span>
+              </div>
+              <div class="info-card-body">
+                <div class="info-row">
+                  <span class="info-label">开机自启</span>
+                  <span class="info-value">
+                    <span class="info-tag" :class="vmInfo.autostart ? 'tag-success' : 'tag-info'">
+                      {{ vmInfo.autostart ? '已启用' : '已禁用' }}
+                    </span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">
+                    启动冻结
+                    <span class="sub-label">开发者</span>
+                  </span>
+                  <span class="info-value">
+                    <el-tooltip
+                      v-if="vmInfo.freeze"
+                      content="已开启：启动时冻结 CPU。虚拟机启动后会先进入暂停态，可在开发者监视器执行 c 继续。"
+                      placement="top"
+                    >
+                      <span class="info-tag tag-warning">已开启</span>
+                    </el-tooltip>
+                    <span v-else class="info-tag tag-info">未开启</span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">APIC</span>
+                  <span class="info-value">
+                    <span class="info-tag" :class="vmInfo.apic ? 'tag-success' : 'tag-warning'">
+                      {{ vmInfo.apic ? '已启用' : '已关闭' }}
+                    </span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">PAE</span>
+                  <span class="info-value">
+                    <span class="info-tag" :class="vmInfo.pae ? 'tag-success' : 'tag-info'">
+                      {{ vmInfo.pae ? '已启用' : '已关闭' }}
+                    </span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">CPU 限制</span>
+                  <span class="info-value">{{ vmInfo.cpu_limit_percent > 0 ? `${vmInfo.cpu_limit_percent}%` : '无限制' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">CPU 亲和性</span>
+                  <span class="info-value">{{ vmInfo.cpu_affinity || '未设置' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">内存策略</span>
+                  <span class="info-value">{{ vmInfo.memory_backend === 'virtio_mem' ? 'virtio-mem 弹性' : 'Balloon 动态' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 磁盘 IOPS 限制信息 -->
+            <div class="info-card" v-if="!isLightweight">
+              <div class="info-card-header">
+                <div class="card-icon disk-iops-icon">
+                  <el-icon><Coin /></el-icon>
+                </div>
+                <span class="card-title">磁盘 IOPS 限制</span>
+                <el-button link size="small" type="primary" class="card-refresh-btn" @click="loadDiskIOPSList" :loading="diskIopsLoading">刷新</el-button>
+              </div>
+              <div class="info-card-body" v-loading="diskIopsLoading">
+                <template v-if="diskIopsList.length > 0">
+                  <div class="disk-iops-table">
+                    <div class="disk-iops-header">
+                      <span class="disk-iops-col device-col">设备</span>
+                      <span class="disk-iops-col capacity-col">容量</span>
+                      <span class="disk-iops-col iops-col">总IOPS</span>
+                      <span class="disk-iops-col iops-col">读IOPS</span>
+                      <span class="disk-iops-col iops-col">写IOPS</span>
+                    </div>
+                    <div v-for="disk in diskIopsList" :key="disk.device" class="disk-iops-row">
+                      <span class="disk-iops-col device-col">
+                        <span class="disk-dev-name">{{ disk.device }}</span>
+                        <span class="disk-dev-bus">({{ disk.bus }})</span>
+                      </span>
+                      <span class="disk-iops-col capacity-col">{{ disk.capacity_gb ? disk.capacity_gb + ' GB' : '-' }}</span>
+                      <span class="disk-iops-col iops-col">
+                        <span :class="disk.iops_total?.is_set && disk.iops_total?.value > 0 ? 'iops-limited' : 'iops-none'">
+                          {{ disk.iops_total?.is_set && disk.iops_total?.value > 0 ? disk.iops_total.value : '无限制' }}
+                        </span>
+                      </span>
+                      <span class="disk-iops-col iops-col">
+                        <span :class="disk.iops_read?.is_set && disk.iops_read?.value > 0 ? 'iops-limited' : 'iops-none'">
+                          {{ disk.iops_read?.is_set && disk.iops_read?.value > 0 ? disk.iops_read.value : '无限制' }}
+                        </span>
+                      </span>
+                      <span class="disk-iops-col iops-col">
+                        <span :class="disk.iops_write?.is_set && disk.iops_write?.value > 0 ? 'iops-limited' : 'iops-none'">
+                          {{ disk.iops_write?.is_set && disk.iops_write?.value > 0 ? disk.iops_write.value : '无限制' }}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </template>
+                <div v-else class="disk-iops-empty">暂无磁盘数据</div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="info-column">
+            <div class="info-card lazy-card-skeleton">
+              <div class="info-card-header">
+                <div class="card-icon config-icon">
+                  <el-icon><Setting /></el-icon>
+                </div>
+                <span class="card-title">基本配置</span>
+              </div>
+              <div class="info-card-body"><el-skeleton :rows="7" animated /></div>
+            </div>
+            <div class="info-card lazy-card-skeleton">
+              <div class="info-card-header">
+                <div class="card-icon credential-icon">
+                  <el-icon><Lock /></el-icon>
+                </div>
+                <span class="card-title">登录凭证</span>
+              </div>
+              <div class="info-card-body"><el-skeleton :rows="4" animated /></div>
+            </div>
+          </div>
+          <div class="info-column">
+            <div class="info-card lazy-card-skeleton">
+              <div class="info-card-header">
+                <div class="card-icon network-icon">
+                  <el-icon><Connection /></el-icon>
+                </div>
+                <span class="card-title">网络与连接</span>
+              </div>
+              <div class="info-card-body"><el-skeleton :rows="5" animated /></div>
+            </div>
+            <div class="info-card lazy-card-skeleton">
+              <div class="info-card-header">
+                <div class="card-icon advanced-icon">
+                  <el-icon><Operation /></el-icon>
+                </div>
+                <span class="card-title">高级设置</span>
+              </div>
+              <div class="info-card-body"><el-skeleton :rows="6" animated /></div>
+            </div>
+          </div>
+        </template>
+      </section>
+    </template>
+
+    <!-- Hero 已展示，下方区域加载中 -->
+    <div v-else class="below-hero-loading">
+      <div class="lazy-section-placeholder">
+        <el-skeleton :rows="3" animated />
       </div>
-    </section>
+      <div class="lazy-section-placeholder" style="margin-top: 16px;">
+        <el-skeleton :rows="4" animated />
+      </div>
+    </div>
 
     <!-- 返回顶部 -->
     <transition name="fade-up">
@@ -587,7 +650,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { createVmDetailSSE, operateVm, resetVmLinuxPassword, lockVm, unlockVm } from '@/api/vm'
 import { getDiskList } from '@/api/vm'
@@ -614,7 +677,7 @@ import {
 
 const route = useRoute()
 const vmName = computed(() => route.params.id)
-const loading = ref(true)
+const pageReady = ref(false)
 const operating = ref(false)
 const activeTab = ref('snapshot')
 const snapshotQuota = ref(null)
@@ -627,6 +690,57 @@ const userStore = useUserStore()
 const diskIopsList = ref([])
 const diskIopsLoading = ref(false)
 const isLightweight = computed(() => userStore.role !== 'admin' && userStore.cloudType === 'lightweight')
+
+// ==================== 区域懒加载 ====================
+const showMonitor = ref(false)
+const showInfoCards = ref(false)
+const monitorSectionRef = ref(null)
+const infoSectionRef = ref(null)
+let sectionObserver = null
+
+const initLazySections = () => {
+  if (sectionObserver) {
+    sectionObserver.disconnect()
+  }
+
+  // 使用 IntersectionObserver 检测监控区和信息卡片区是否进入视口
+  sectionObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      const el = entry.target
+      if (el === monitorSectionRef.value && !showMonitor.value) {
+        showMonitor.value = true
+      }
+      if (el === infoSectionRef.value && !showInfoCards.value) {
+        showInfoCards.value = true
+        // 信息卡片区可见时加载磁盘 IOPS 数据
+        nextTick(() => {
+          if (!isLightweight.value && diskIopsList.value.length === 0) {
+            loadDiskIOPSList()
+          }
+        })
+      }
+      // 如果两个区域都已加载，断开观察器
+      if (showMonitor.value && showInfoCards.value) {
+        sectionObserver.disconnect()
+        sectionObserver = null
+      }
+    }
+  }, {
+    rootMargin: '200px', // 提前 200px 开始加载，确保滚动到时已渲染完毕
+    threshold: 0
+  })
+}
+
+const observeLazySections = () => {
+  if (!sectionObserver) return
+  if (monitorSectionRef.value) {
+    sectionObserver.observe(monitorSectionRef.value)
+  }
+  if (infoSectionRef.value) {
+    sectionObserver.observe(infoSectionRef.value)
+  }
+}
 const ipDisplayText = computed(() => {
   if (vmInfo.ip) return vmInfo.ip
   if (vmInfo.ip_status) return '无法获取'
@@ -773,6 +887,18 @@ const diskWrStr = computed(() => {
 })
 
 const scrollToSection = (id) => {
+  // 点击导航时主动触发对应区域加载
+  if (id === 'monitor' && !showMonitor.value) {
+    showMonitor.value = true
+  }
+  if (id === 'config' && !showInfoCards.value) {
+    showInfoCards.value = true
+    nextTick(() => {
+      if (!isLightweight.value && diskIopsList.value.length === 0) {
+        loadDiskIOPSList()
+      }
+    })
+  }
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -1006,8 +1132,13 @@ const initSSE = () => {
         }
         Object.assign(vmInfo, data)
         vmStore.addVisitedVm({ id: vmName.value, name: vmInfo.name || vmName.value })
-        if (loading.value) {
-          loading.value = false
+        if (!pageReady.value) {
+          pageReady.value = true
+          // 页面数据准备就绪后，下一帧初始化懒加载观察器
+          nextTick(() => {
+            initLazySections()
+            observeLazySections()
+          })
         }
       }
     } catch (e) {
@@ -1128,12 +1259,19 @@ watch(() => vmName.value, (newVal, oldVal) => {
   if (newVal && newVal !== oldVal && route.path.includes('/vm/detail/')) {
     activeTab.value = 'snapshot'
     showDeveloperTab.value = false
-    loading.value = true
+    pageReady.value = false
+    showMonitor.value = false
+    showInfoCards.value = false
+    diskIopsList.value = []
+    if (sectionObserver) {
+      sectionObserver.disconnect()
+      sectionObserver = null
+    }
     initSSE()
   }
 })
 
-// 加载磁盘 IOPS 列表
+// 加载磁盘 IOPS 列表（仅在信息卡片区可见时调用）
 async function loadDiskIOPSList() {
   diskIopsLoading.value = true
   try {
@@ -1150,14 +1288,16 @@ async function loadDiskIOPSList() {
 onMounted(() => {
   initSSE()
   window.addEventListener('scroll', handleScroll)
-  if (!isLightweight.value) {
-    loadDiskIOPSList()
-  }
+  // 磁盘 IOPS 不再在页面挂载时加载，改为信息卡片区进入视口时按需加载
 })
 
 onUnmounted(() => {
   closeSSE()
   window.removeEventListener('scroll', handleScroll)
+  if (sectionObserver) {
+    sectionObserver.disconnect()
+    sectionObserver = null
+  }
 })
 </script>
 
@@ -1705,6 +1845,22 @@ onUnmounted(() => {
 .fade-up-leave-to {
   opacity: 0;
   transform: translateY(12px);
+}
+
+/* ==================== 懒加载骨架屏 ==================== */
+.below-hero-loading {
+  margin-top: 0;
+}
+
+.lazy-section-placeholder {
+  background: var(--el-bg-color);
+  border-radius: 14px;
+  padding: 20px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.lazy-card-skeleton .info-card-body {
+  padding: 16px 22px;
 }
 
 /* ==================== 表单辅助 ==================== */

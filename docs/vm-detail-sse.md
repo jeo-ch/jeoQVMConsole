@@ -94,8 +94,23 @@ GET /api/vm/my-vm/sse?token=<JWT_TOKEN>
 | `server/service/libvirt.go` | `VmDetail` 增加 `Stats` 字段，`GetVM` 自动填充缓存 stats |
 | `server/router/router.go` | 注册 `/:name/sse` 路由 |
 | `web/src/api/vm.js` | 新增 `createVmDetailSSE` 函数 |
-| `web/src/views/vm/detail.vue` | 重写数据获取逻辑为 SSE，传递 stats 给 ResourceCharts |
+| `web/src/views/vm/detail.vue` | 重写数据获取逻辑为 SSE，传递 stats 给 ResourceCharts；页面区域懒加载（监控图表、信息卡片区按需渲染） |
 | `web/src/components/ResourceCharts.vue` | 新增 `externalStats` prop，支持外部数据驱动 |
+
+## 页面区域懒加载
+
+详情页采用分区域按需加载策略，避免低性能设备一次性渲染全部内容造成卡顿：
+
+| 区域 | 加载时机 | 骨架屏 |
+|------|---------|--------|
+| ① Hero 状态横幅 | SSE 首条数据到达后立即渲染 | 页面级 `el-skeleton` |
+| ② 实时资源概览条 | 同上 | 无（依赖 Hero 数据） |
+| ③ 功能管理 Tabs | 同上（tab 内组件使用 `lazy` 属性） | 无 |
+| ④ 监控图表区 | 滚动至视口 200px 以内 或 点击快速导航"监控" | `el-skeleton` 占位 |
+| ⑤ 信息卡片区 | 滚动至视口 200px 以内 或 点击快速导航"配置" | 卡片级 `el-skeleton` 占位 |
+| 磁盘 IOPS 数据 | 信息卡片区进入视口时异步加载 | 卡片内 `v-loading` |
+
+实现方式：`IntersectionObserver` + `rootMargin: 200px` 提前触发，确保用户滚动到位时内容已渲染完毕。快速导航点击时主动触发加载，避免等待计时。
 
 ## 与列表页 SSE 的对比
 
