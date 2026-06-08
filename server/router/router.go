@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"kvm_console/config"
 	"kvm_console/handler"
 	"kvm_console/middleware"
 )
@@ -21,12 +23,20 @@ func Setup() *gin.Engine {
 	// 全局中间件
 	r.Use(middleware.CORSMiddleware())
 
+	// 全局 API 限频
+	rlConfig := middleware.RateLimitConfig{
+		PublicPerMinute: config.GlobalConfig.RateLimitPublicPerMin,
+		AuthPerMinute:   config.GlobalConfig.RateLimitAuthPerMin,
+		CleanupInterval: 5 * time.Minute,
+	}
+	rateLimiter := middleware.NewRateLimiter(rlConfig)
+	r.Use(middleware.RateLimitMiddleware(rateLimiter))
+
 	// API 路由组
 	api := r.Group("/api")
 	{
 		api.GET("/public/settings", handler.GetPublicSettings)
 		api.GET("/public/version", handler.GetVersion)
-		api.GET("/public/system-info", handler.GetPublicSystemInfo)
 
 		// ==================== 认证（无需登录） ====================
 		auth := api.Group("/auth")
@@ -448,6 +458,9 @@ func Setup() *gin.Engine {
 
 			// ==================== CPU 亲和性预设（所有登录用户可读） ====================
 			authorized.GET("/cpu-affinity-presets", handler.GetCPUAffinityPresets)
+
+			// ==================== 系统运行环境信息（需登录） ====================
+			authorized.GET("/system-info", handler.GetPublicSystemInfo)
 
 		}
 	}

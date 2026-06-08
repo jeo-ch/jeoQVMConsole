@@ -26,7 +26,7 @@ func GetVersion(c *gin.Context) {
 	})
 }
 
-// GetPublicSystemInfo 返回公开的系统运行环境信息（无需登录）
+// GetPublicSystemInfo 返回系统运行环境信息（需登录认证）
 func GetPublicSystemInfo(c *gin.Context) {
 	hostname, _ := os.Hostname()
 

@@ -32,6 +32,10 @@ type Config struct {
 	JWTExpireHours int `json:"jwt_expire_hours"`
 	// JWT 密钥自动轮换间隔（小时，0=禁用）
 	JWTSecretRotateHours int `json:"jwt_secret_rotate_hours"`
+	// API 限频：公开接口每 IP 每分钟最大请求数（0=不禁用）
+	RateLimitPublicPerMin int `json:"rate_limit_public_per_min"`
+	// API 限频：认证接口每 IP 每分钟最大请求数（0=不禁用）
+	RateLimitAuthPerMin int `json:"rate_limit_auth_per_min"`
 	// 模板目录
 	TemplateDir string `json:"template_dir"`
 	// 模板导入临时目录
@@ -208,6 +212,8 @@ func Init() {
 		PortForwardHTTPProbeIntervalMinutes:   getEnvInt("KVM_PORT_FORWARD_HTTP_PROBE_INTERVAL_MINUTES", 60),
 		PortForwardHTTPProbeTimeoutSeconds:    getEnvInt("KVM_PORT_FORWARD_HTTP_PROBE_TIMEOUT_SECONDS", 3),
 		BatchCloneMaxConcurrency:              getEnvInt("KVM_BATCH_CLONE_MAX_CONCURRENCY", 10),
+		RateLimitPublicPerMin:                getEnvInt("KVM_RATE_LIMIT_PUBLIC", 20),
+		RateLimitAuthPerMin:                  getEnvInt("KVM_RATE_LIMIT_AUTH", 60),
 	}
 	if GlobalConfig.VMCredentialSecret == "" {
 		GlobalConfig.VMCredentialSecret = GlobalConfig.JWTSecret

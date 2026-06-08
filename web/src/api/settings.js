@@ -20,10 +20,10 @@ export function getPublicVersion() {
   })
 }
 
-// 获取公开的系统运行环境信息
+// 获取系统运行环境信息（需登录）
 export function getPublicSystemInfo() {
   return request({
-    url: '/public/system-info',
+    url: '/system-info',
     method: 'get'
   })
 }
