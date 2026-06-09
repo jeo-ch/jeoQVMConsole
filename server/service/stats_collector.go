@@ -2,9 +2,12 @@ package service
 
 import (
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/digitalocean/go-libvirt"
 
 	"kvm_console/model"
 	"kvm_console/utils"
@@ -82,13 +85,23 @@ func collectHostStats() {
 func collectAllVMStats() {
 	SyncVMRuntimeStatesFromHost(time.Now())
 
-	// 获取运行中的VM列表
-	result := utils.ExecShell("virsh list --name --state-running 2>/dev/null | grep -v '^$'")
-	if result.Error != nil {
-		return
+	// 获取运行中的VM列表（优先 RPC）
+	var names []string
+	if IsLibvirtRPCAvailable() {
+		if rpcNames, err := getRunningVMNamesRPC(); err == nil {
+			names = rpcNames
+		} else {
+			log.Printf("[go-libvirt] 获取运行中 VM 列表失败，降级为 virsh: %v", err)
+		}
+	}
+	if names == nil {
+		result := utils.ExecShell("virsh list --name --state-running 2>/dev/null | grep -v '^$'")
+		if result.Error != nil {
+			return
+		}
+		names = strings.Split(strings.TrimSpace(result.Stdout), "\n")
 	}
 
-	names := strings.Split(strings.TrimSpace(result.Stdout), "\n")
 	runningSet := make(map[string]bool)
 
 	for _, name := range names {
@@ -98,10 +111,23 @@ func collectAllVMStats() {
 		}
 		runningSet[name] = true
 
-		// 采集资源（GetVMStats 内部有 1s sleep 用于 CPU 采样）
-		stats, err := GetVMStats(name)
-		if err != nil {
-			continue
+		var stats *VmStats
+		var err error
+
+		// 优先尝试 go-libvirt RPC 采集
+		if IsLibvirtRPCAvailable() {
+			stats, err = collectVMStatsRPC(name)
+			if err != nil {
+				log.Printf("[go-libvirt] 采集 %s 统计失败，降级为 virsh: %v", name, err)
+			}
+		}
+
+		// fallback: 原有 virsh 逻辑
+		if stats == nil {
+			stats, err = GetVMStats(name)
+			if err != nil {
+				continue
+			}
 		}
 
 		statsCache.Lock()
@@ -117,6 +143,139 @@ func collectAllVMStats() {
 		}
 	}
 	statsCache.Unlock()
+}
+
+// getRunningVMNamesRPC 通过 go-libvirt RPC 获取运行中的 VM 名称列表
+func getRunningVMNamesRPC() ([]string, error) {
+	domains, err := listAllDomainsRPC()
+	if err != nil {
+		return nil, err
+	}
+	l, err := GetLibvirt()
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, dom := range domains {
+		state, _, _, _, _, infoErr := l.DomainGetInfo(dom)
+		if infoErr != nil {
+			continue
+		}
+		if libvirt.DomainState(state) == libvirt.DomainRunning {
+			names = append(names, dom.Name)
+		}
+	}
+	return names, nil
+}
+
+// collectVMStatsRPC 通过 go-libvirt RPC 采集单台 VM 的实时资源统计
+func collectVMStatsRPC(name string) (*VmStats, error) {
+	// 获取 vCPU 数量
+	vcpuCount, _, _, _, err := getDomainInfoRPC(name)
+	if err != nil {
+		return nil, err
+	}
+	if vcpuCount <= 0 {
+		vcpuCount = 1
+	}
+
+	// CPU 第一次采样（DomainGetInfo 返回的 cpu_time 为纳秒）
+	cpuTime1, err := getDomainCPUStatsRPC(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// 等待 1 秒再采样
+	time.Sleep(time.Second)
+
+	cpuTime2, err := getDomainCPUStatsRPC(name)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &VmStats{}
+
+	// 计算 CPU 使用率 = (差值秒数 / 采样间隔 / vCPU数) * 100
+	delta := float64(cpuTime2-cpuTime1) / 1e9
+	if delta >= 0 {
+		stats.CPUPercent = (delta / 1.0 / float64(vcpuCount)) * 100
+		if stats.CPUPercent > 100 {
+			stats.CPUPercent = 100
+		}
+	}
+
+	// 内存统计（替代 virsh dommemstat）
+	memStats, err := getDomainMemoryStatsRPC(name)
+	if err == nil {
+		stats.MemTotal = int64(memStats["actual"])
+		stats.MemUsed = stats.MemTotal - int64(memStats["unused"])
+		if memStats["available"] > 0 {
+			stats.MemUsed = stats.MemTotal - int64(memStats["usable"])
+		}
+	}
+
+	// 获取当前 XML 以提取网络接口和磁盘设备名
+	xmlStr, err := getDomainXMLRPC(name, 0)
+	if err == nil {
+		// 网络统计（替代 virsh domifstat）
+		ifNames := extractInterfaceTargetDevsFromXML(xmlStr)
+		for _, ifName := range ifNames {
+			if ifName == "" || ifName == "-" {
+				continue
+			}
+			rxBytes, txBytes, ifErr := getDomainInterfaceStatsRPC(name, ifName)
+			if ifErr == nil {
+				stats.NetRxBytes += rxBytes
+				stats.NetTxBytes += txBytes
+			}
+		}
+
+		// 磁盘 I/O 统计（替代 virsh domblkstat）——只取第一个非 cdrom 磁盘
+		dev := extractFirstDiskTargetDevFromXML(xmlStr)
+		if dev != "" {
+			rdBytes, wrBytes, blkErr := getDomainBlockStatsRPC(name, dev)
+			if blkErr == nil {
+				stats.DiskRdBytes = rdBytes
+				stats.DiskWrBytes = wrBytes
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+// extractInterfaceTargetDevsFromXML 从 domain XML 中提取所有网络接口的 target dev 名称
+func extractInterfaceTargetDevsFromXML(xmlStr string) []string {
+	var result []string
+	ifaceRe := regexp.MustCompile(`(?s)<interface\s[^>]*>(.*?)</interface>`)
+	targetRe := regexp.MustCompile(`<target\s+dev=['"]([^'"]+)['"]`)
+	matches := ifaceRe.FindAllStringSubmatch(xmlStr, -1)
+	for _, m := range matches {
+		if tm := targetRe.FindStringSubmatch(m[1]); len(tm) > 1 {
+			result = append(result, tm[1])
+		}
+	}
+	return result
+}
+
+// extractFirstDiskTargetDevFromXML 从 domain XML 中提取第一个非 cdrom 磁盘的 target dev 名称
+func extractFirstDiskTargetDevFromXML(xmlStr string) string {
+	diskRe := regexp.MustCompile(`(?s)<disk\s[^>]*device=['"]disk['"][^>]*>(.*?)</disk>`)
+	targetRe := regexp.MustCompile(`<target\s+dev=['"]([^'"]+)['"]`)
+	sourceRe := regexp.MustCompile(`<source\s+file=['"]([^'"]+)['"]`)
+	matches := diskRe.FindAllStringSubmatch(xmlStr, -1)
+	for _, m := range matches {
+		// 跳过 ISO 镜像
+		if sm := sourceRe.FindStringSubmatch(m[1]); len(sm) > 1 {
+			if strings.HasSuffix(sm[1], ".iso") {
+				continue
+			}
+		}
+		if tm := targetRe.FindStringSubmatch(m[1]); len(tm) > 1 {
+			return tm[1]
+		}
+	}
+	return ""
 }
 
 // persistStatsToDB 将当前缓存数据批量写入数据库

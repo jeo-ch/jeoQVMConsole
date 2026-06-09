@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"syscall"
+	"strconv"
+	"strings"
 
 	"kvm_console/utils"
 )
@@ -14,20 +15,19 @@ import (
 // dir: 目标目录路径
 // requiredMB: 所需空间大小（单位：MB）
 func CheckStorageSpace(dir string, requiredMB int64) error {
-	var statfs syscall.Statfs_t
-	if err := syscall.Statfs(dir, &statfs); err != nil {
-		return fmt.Errorf("无法获取目录 %s 的磁盘空间信息: %w", dir, err)
+	// 使用 df 命令获取可用空间（KB）
+	result := utils.ExecShell(fmt.Sprintf("df -k %s 2>/dev/null | awk 'NR==2{print $4}'", utils.ShellSingleQuote(dir)))
+	if result.Error != nil {
+		return fmt.Errorf("无法获取目录 %s 的磁盘空间信息: %w", dir, result.Error)
 	}
-
-	// 计算可用空间（字节）
-	availableBytes := int64(statfs.Bavail) * int64(statfs.Bsize)
-	requiredBytes := requiredMB * 1024 * 1024
-
-	if availableBytes < requiredBytes {
-		availableMB := availableBytes / (1024 * 1024)
-		return fmt.Errorf("目录 %s 可用空间不足，需要 %d MB，当前可用 %d MB", dir, requiredMB, availableMB)
+	availableKB, err := strconv.ParseInt(strings.TrimSpace(result.Stdout), 10, 64)
+	if err != nil {
+		return fmt.Errorf("无法解析目录 %s 的磁盘空间信息: %w", dir, err)
 	}
-
+	requiredKB := requiredMB * 1024
+	if availableKB < requiredKB {
+		return fmt.Errorf("目录 %s 可用空间不足，需要 %d MB，当前可用 %d MB", dir, requiredMB, availableKB/1024)
+	}
 	return nil
 }
 

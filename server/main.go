@@ -40,6 +40,11 @@ func main() {
 		config.GlobalConfig.LoadFromDB(savedSettings)
 		log.Printf("已从数据库加载 %d 项持久化系统设置", len(savedSettings))
 	}
+
+	// 初始化 go-libvirt RPC 连接（失败不影响启动，降级为 virsh）
+	service.InitLibvirtRPC()
+	defer service.CloseLibvirt()
+
 	if err := service.BootstrapVMCacheFromHost(); err != nil {
 		log.Printf("[警告] 启动时同步虚拟机缓存失败，已保留数据库旧缓存: %v", err)
 	} else {

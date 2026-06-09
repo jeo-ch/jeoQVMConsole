@@ -135,6 +135,8 @@ type Config struct {
 	DefaultDiskIOPSWrite int `json:"default_disk_iops_write"` // 默认写 IOPS 限制
 	// 批量克隆最大同时克隆数量
 	BatchCloneMaxConcurrency int `json:"batch_clone_max_concurrency"`
+	// 是否使用 go-libvirt RPC（默认 true，关闭后降级为 virsh 命令行）
+	UseGoLibvirt bool `json:"use_go_libvirt"`
 }
 
 // GlobalConfig 全局配置实例
@@ -214,6 +216,7 @@ func Init() {
 		BatchCloneMaxConcurrency:              getEnvInt("KVM_BATCH_CLONE_MAX_CONCURRENCY", 10),
 		RateLimitPublicPerMin:                getEnvInt("KVM_RATE_LIMIT_PUBLIC", 20),
 		RateLimitAuthPerMin:                  getEnvInt("KVM_RATE_LIMIT_AUTH", 0),
+		UseGoLibvirt:                         getEnvBool("KVM_USE_GO_LIBVIRT", true),
 	}
 	if GlobalConfig.VMCredentialSecret == "" {
 		GlobalConfig.VMCredentialSecret = GlobalConfig.JWTSecret
@@ -347,6 +350,7 @@ var PersistableKeys = []string{
 	"default_disk_iops_write",
 	"batch_clone_max_concurrency",
 	"jwt_secret_rotate_hours",
+	"use_go_libvirt",
 }
 
 // keyToEnvVar 配置项到环境变量的映射
@@ -406,6 +410,7 @@ var keyToEnvVar = map[string]string{
 	"default_disk_iops_write":                   "KVM_DEFAULT_DISK_IOPS_WRITE",
 	"batch_clone_max_concurrency":               "KVM_BATCH_CLONE_MAX_CONCURRENCY",
 	"jwt_secret_rotate_hours":                   "KVM_JWT_SECRET_ROTATE_HOURS",
+	"use_go_libvirt":                            "KVM_USE_GO_LIBVIRT",
 }
 
 // LoadFromDB 从数据库加载持久化的设置覆盖当前配置
@@ -589,6 +594,10 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			if v, err := strconv.Atoi(value); err == nil && v >= 0 {
 				c.JWTSecretRotateHours = v
 			}
+		case "use_go_libvirt":
+			if v, err := strconv.ParseBool(value); err == nil {
+				c.UseGoLibvirt = v
+			}
 		}
 	}
 }
@@ -651,6 +660,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"default_disk_iops_write":                   strconv.Itoa(c.DefaultDiskIOPSWrite),
 		"batch_clone_max_concurrency":               strconv.Itoa(c.BatchCloneMaxConcurrency),
 		"jwt_secret_rotate_hours":                   strconv.Itoa(c.JWTSecretRotateHours),
+		"use_go_libvirt":                            strconv.FormatBool(c.UseGoLibvirt),
 	}
 }
 

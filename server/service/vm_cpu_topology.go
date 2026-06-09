@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -276,6 +277,14 @@ func setVMCPUWithTopologySync(name string, vcpu, maxVCPU int) error {
 				return fmt.Errorf("CPU 拓扑无法匹配目标 vCPU 数量：当前拓扑 sockets=%d dies=%d threads=%d，无法整除 vcpu=%d", sockets, dies, threads, topoVCPU)
 			}
 		}
+	}
+
+	if IsLibvirtRPCAvailable() {
+		_, err := defineDomainXMLRPC(xmlStr)
+		if err == nil {
+			return nil
+		}
+		log.Printf("[go-libvirt] define %s 失败，降级为 virsh: %v", name, err)
 	}
 
 	xmlPath := fmt.Sprintf("/tmp/_cpu-topology-sync-%s.xml", name)
