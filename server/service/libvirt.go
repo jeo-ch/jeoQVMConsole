@@ -18,7 +18,7 @@ import (
 )
 
 // ==================== Libvirt 命令封装 ====================
-// 所有虚拟机操作优先使用 virsh 命令，不使用数据库
+// 虚拟机操作优先使用 go-libvirt RPC，部分辅助信息通过系统命令获取
 
 const (
 	vmConfigMetadataURI = "https://kvm-console.local/domain-config"
@@ -400,21 +400,9 @@ func ListVMs(options ...VMListOptions) ([]VmInfo, error) {
 // GetVM 获取单个虚拟机详情
 func GetVM(name string) (*VmDetail, error) {
 	// 检查虚拟机是否存在并获取基本信息
-	var dominfoStdout string
-	domExists := false
-	if IsLibvirtRPCAvailable() {
-		if _, _, _, _, err := getDomainInfoRPC(name); err == nil {
-			domExists = true
-		} else {
-			logger.Libvirt.Warn("getDomainInfoRPC 失败，降级为 virsh", "domain", name, "error", err)
-		}
-	}
-	if !domExists {
-		result := utils.ExecCommand("virsh", "dominfo", name)
-		if result.Error != nil {
-			return nil, fmt.Errorf("虚拟机不存在: %s", name)
-		}
-		dominfoStdout = result.Stdout
+	vcpu, maxMemKB, usedMemKB, autostart, err := getDomainInfoRPC(name)
+	if err != nil {
+		return nil, fmt.Errorf("虚拟机不存在: %s", name)
 	}
 
 	vm := &VmDetail{}
@@ -424,41 +412,18 @@ func GetVM(name string) (*VmDetail, error) {
 	}
 
 	// 状态
-	if IsLibvirtRPCAvailable() {
-		if state, err := getDomainStateRPC(name); err == nil {
-			vm.Status = state
-		} else {
-			logger.Libvirt.Warn("getDomainStateRPC 失败，降级为 virsh", "domain", name, "error", err)
-		}
+	state, err := getDomainStateRPC(name)
+	if err != nil {
+		return nil, fmt.Errorf("获取虚拟机状态失败: %w", err)
 	}
-	if vm.Status == "" {
-		stateResult := utils.ExecCommand("virsh", "domstate", name)
-		if stateResult.Error == nil {
-			vm.Status = strings.TrimSpace(stateResult.Stdout)
-		}
-	}
+	vm.Status = state
 	UpdateVMRuntimeState(name, vm.Status, time.Now())
 
-	// 基本信息
-	if IsLibvirtRPCAvailable() {
-		if vcpu, maxMemKB, usedMemKB, autostart, err := getDomainInfoRPC(name); err == nil {
-			vm.VCPU = vcpu
-			vm.MaxMemory = int(maxMemKB) / 1024
-			vm.Memory = int(usedMemKB) / 1024
-			vm.Autostart = autostart
-		} else {
-			logger.Libvirt.Warn("getDomainInfoRPC 失败，降级为 virsh", "domain", name, "error", err)
-		}
-	}
-	if dominfoStdout != "" {
-		vm.VCPU = parseInfoInt(dominfoStdout, "CPU(s):")
-		maxMem := parseInfoInt(dominfoStdout, "Max memory:")
-		vm.MaxMemory = maxMem / 1024
-		usedMem := parseInfoInt(dominfoStdout, "Used memory:")
-		vm.Memory = usedMem / 1024
-		vm.Autostart = strings.Contains(dominfoStdout, "Autostart:      enable")
-		vm.UUID = parseInfoValue(dominfoStdout, "UUID:")
-	}
+	// 基本信息（从 RPC 获取的结构化数据）
+	vm.VCPU = vcpu
+	vm.MaxMemory = int(maxMemKB) / 1024
+	vm.Memory = int(usedMemKB) / 1024
+	vm.Autostart = autostart
 
 	// 创建时间
 	xmlPath := fmt.Sprintf("/etc/libvirt/qemu/%s.xml", name)
@@ -516,64 +481,54 @@ func GetVM(name string) (*VmDetail, error) {
 	}
 
 	// 获取 XML 判断系统类型、引导顺序和可引导设备
-	var xmlStr string
-	if IsLibvirtRPCAvailable() {
-		if xmlRPC, err := getDomainXMLRPC(name, libvirt.DomainXMLInactive); err == nil {
-			xmlStr = xmlRPC
-		} else {
-			logger.Libvirt.Warn("getDomainXMLRPC 失败，降级为 virsh", "domain", name, "error", err)
-		}
+	xmlStr, err := getDomainXMLRPC(name, libvirt.DomainXMLInactive)
+	if err != nil {
+		return nil, fmt.Errorf("获取虚拟机 XML 失败: %w", err)
 	}
-	if xmlStr == "" {
-		xmlResult := utils.ExecCommand("virsh", "dumpxml", name, "--inactive")
-		if xmlResult.Error == nil {
-			xmlStr = xmlResult.Stdout
-		}
-	}
-	if xmlStr != "" {
-		// 使用持久化配置的 vCPU 覆盖在线值，确保界面显示的 vCPU 与用户配置一致
-		// (libvirt 不支持在线修改 vCPU 最大值，热添加超限时持久化已更新但在线未变)
-		if configVCPU := ParseVCPUCountFromDomainXML(xmlStr); configVCPU > 0 {
-			vm.VCPU = configVCPU
-		}
-		vm.OSType = detectVMOSType(vm.Template, xmlStr)
-		vm.BootType = ParseVMBootTypeFromDomainXML(xmlStr)
-		vm.Arch = ParseVMArchFromDomainXML(xmlStr)
-		vm.MachineType = ParseVMMachineTypeFromDomainXML(xmlStr)
-		if count, err := GetVMPCIERootPorts(name); err == nil {
-			vm.PCIERootPorts = count
-		}
-		vm.VideoModel = ParseVMVideoModelFromDomainXML(xmlStr)
-		vm.CPUTopologyMode = ParseVMCPUTopologyModeFromDomainXML(xmlStr)
-		vm.CPULimitPercent = ParseVMCPULimitPercentFromDomainXML(xmlStr, vm.VCPU)
-		vm.CPUAffinity = ParseCPUAffinityFromDomainXML(xmlStr)
-		vm.APIC = ParseVMAPICFromDomainXML(xmlStr)
-		vm.PAE = ParseVMPAEFromDomainXML(xmlStr)
-		vm.RTCOffset = ParseRTCOffsetFromDomainXML(xmlStr)
-		vm.RTCStartDate = ParseRTCStartDateFromDomainXML(xmlStr)
-		vm.GuestAgent = ParseVMGuestAgentConfigFromDomainXML(xmlStr)
-		vm.SMBIOS1 = ParseSMBIOS1ConfigFromDomainXML(xmlStr)
-		memInfo := GetVMMemoryDynamicInfo(name, xmlStr, vm.Status)
-		applyMemoryDynamicInfoToVMInfo(&vm.VmInfo, memInfo)
-		if memInfo != nil {
-			vm.MemoryObservationUntil = memInfo.ObservationUntil
-			vm.MemoryManualPauseUntil = memInfo.ManualPauseUntil
-		}
+	vm.UUID = ParseDomainUUIDFromXML(xmlStr)
 
-		// 解析引导顺序（OS 级别 <boot dev='xxx'/>）
-		bootDevRe := regexp.MustCompile(`<boot dev='([^']+)'/>`)
-		bootMatches := bootDevRe.FindAllStringSubmatch(xmlStr, -1)
-		for _, m := range bootMatches {
-			vm.BootOrder = append(vm.BootOrder, m[1])
-		}
-		if len(vm.BootOrder) == 0 {
-			vm.BootOrder = []string{"hd"}
-		}
-
-		// 解析所有可引导设备
-		vm.BootDevices = parseBootDevices(xmlStr, vm.BootOrder)
-		vm.Freeze = isVMFreezeEnabled(xmlStr)
+	// 使用持久化配置的 vCPU 覆盖在线值，确保界面显示的 vCPU 与用户配置一致
+	// (libvirt 不支持在线修改 vCPU 最大值，热添加超限时持久化已更新但在线未变)
+	if configVCPU := ParseVCPUCountFromDomainXML(xmlStr); configVCPU > 0 {
+		vm.VCPU = configVCPU
 	}
+	vm.OSType = detectVMOSType(vm.Template, xmlStr)
+	vm.BootType = ParseVMBootTypeFromDomainXML(xmlStr)
+	vm.Arch = ParseVMArchFromDomainXML(xmlStr)
+	vm.MachineType = ParseVMMachineTypeFromDomainXML(xmlStr)
+	if count, err := GetVMPCIERootPorts(name); err == nil {
+		vm.PCIERootPorts = count
+	}
+	vm.VideoModel = ParseVMVideoModelFromDomainXML(xmlStr)
+	vm.CPUTopologyMode = ParseVMCPUTopologyModeFromDomainXML(xmlStr)
+	vm.CPULimitPercent = ParseVMCPULimitPercentFromDomainXML(xmlStr, vm.VCPU)
+	vm.CPUAffinity = ParseCPUAffinityFromDomainXML(xmlStr)
+	vm.APIC = ParseVMAPICFromDomainXML(xmlStr)
+	vm.PAE = ParseVMPAEFromDomainXML(xmlStr)
+	vm.RTCOffset = ParseRTCOffsetFromDomainXML(xmlStr)
+	vm.RTCStartDate = ParseRTCStartDateFromDomainXML(xmlStr)
+	vm.GuestAgent = ParseVMGuestAgentConfigFromDomainXML(xmlStr)
+	vm.SMBIOS1 = ParseSMBIOS1ConfigFromDomainXML(xmlStr)
+	memInfo := GetVMMemoryDynamicInfo(name, xmlStr, vm.Status)
+	applyMemoryDynamicInfoToVMInfo(&vm.VmInfo, memInfo)
+	if memInfo != nil {
+		vm.MemoryObservationUntil = memInfo.ObservationUntil
+		vm.MemoryManualPauseUntil = memInfo.ManualPauseUntil
+	}
+
+	// 解析引导顺序（OS 级别 <boot dev='xxx'/>）
+	bootDevRe := regexp.MustCompile(`<boot dev='([^']+)'/>`)
+	bootMatches := bootDevRe.FindAllStringSubmatch(xmlStr, -1)
+	for _, m := range bootMatches {
+		vm.BootOrder = append(vm.BootOrder, m[1])
+	}
+	if len(vm.BootOrder) == 0 {
+		vm.BootOrder = []string{"hd"}
+	}
+
+	// 解析所有可引导设备
+	vm.BootDevices = parseBootDevices(xmlStr, vm.BootOrder)
+	vm.Freeze = isVMFreezeEnabled(xmlStr)
 
 	// 获取带宽详情
 	vm.BandwidthIn, vm.BandwidthOut = GetVMBandwidthMbps(name)
@@ -607,23 +562,16 @@ func GetVM(name string) (*VmDetail, error) {
 
 // GetVMIPInfo 获取单个虚拟机 IP 信息
 func GetVMIPInfo(name string) (string, string, error) {
-	result := utils.ExecCommand("virsh", "dominfo", name)
-	if result.Error != nil {
+	_, _, _, _, err := getDomainInfoRPC(name)
+	if err != nil {
 		return "", "", fmt.Errorf("虚拟机不存在: %s", name)
 	}
 
-	isRunning := false
-	if IsLibvirtRPCAvailable() {
-		if state, err := getDomainStateRPC(name); err == nil {
-			isRunning = state == "running"
-		} else {
-			logger.Libvirt.Warn("getDomainStateRPC 失败，降级为 virsh", "domain", name, "error", err)
-		}
+	state, err := getDomainStateRPC(name)
+	if err != nil {
+		return "", "", fmt.Errorf("获取虚拟机状态失败: %w", err)
 	}
-	if !isRunning {
-		stateResult := utils.ExecCommand("virsh", "domstate", name)
-		isRunning = stateResult.Error == nil && strings.TrimSpace(stateResult.Stdout) == "running"
-	}
+	isRunning := state == "running"
 
 	return getVMIP(name, isRunning), getVMIPStatus(name, isRunning), nil
 }
@@ -893,16 +841,8 @@ func ShutdownVM(name string) error {
 	if err := EnsureVMNotMigrating(name, "关机"); err != nil {
 		return err
 	}
-	if IsLibvirtRPCAvailable() {
-		err := shutdownDomainRPC(name)
-		if err == nil {
-			return nil
-		}
-		logger.Libvirt.Warn("关机失败，降级为 virsh", "domain", name, "error", err)
-	}
-	result := utils.ExecCommand("virsh", "shutdown", name)
-	if result.Error != nil {
-		return fmt.Errorf("关机失败: %s", result.Stderr)
+	if err := shutdownDomainRPC(name); err != nil {
+		return fmt.Errorf("关机失败: %w", err)
 	}
 	return nil
 }
@@ -912,17 +852,8 @@ func DestroyVM(name string) error {
 	if err := EnsureVMNotMigrating(name, "强制断电"); err != nil {
 		return err
 	}
-	if IsLibvirtRPCAvailable() {
-		err := destroyDomainRPC(name)
-		if err == nil {
-			UpdateVMRuntimeState(name, "shut off", time.Now())
-			return nil
-		}
-		logger.Libvirt.Warn("强制断电失败，降级为 virsh", "domain", name, "error", err)
-	}
-	result := utils.ExecCommand("virsh", "destroy", name)
-	if result.Error != nil {
-		return fmt.Errorf("强制断电失败: %s", result.Stderr)
+	if err := destroyDomainRPC(name); err != nil {
+		return fmt.Errorf("强制断电失败: %w", err)
 	}
 	UpdateVMRuntimeState(name, "shut off", time.Now())
 	return nil
@@ -940,17 +871,8 @@ func RebootVM(name string) error {
 	// 先修复 on_reboot 配置（Cockpit/virt-install 默认 destroy 导致重启变关机）
 	FixOnReboot(name)
 
-	if IsLibvirtRPCAvailable() {
-		err := rebootDomainRPC(name)
-		if err == nil {
-			ResetVMContinuousRuntime(name, time.Now())
-			return nil
-		}
-		logger.Libvirt.Warn("重启失败，降级为 virsh", "domain", name, "error", err)
-	}
-	result := utils.ExecCommand("virsh", "reboot", name)
-	if result.Error != nil {
-		return fmt.Errorf("重启失败: %s", result.Stderr)
+	if err := rebootDomainRPC(name); err != nil {
+		return fmt.Errorf("重启失败: %w", err)
 	}
 	ResetVMContinuousRuntime(name, time.Now())
 	return nil
@@ -965,20 +887,8 @@ func ResetVM(name string) error {
 		return err
 	}
 	FixOnReboot(name)
-	if IsLibvirtRPCAvailable() {
-		err := resetDomainRPC(name)
-		if err == nil {
-			ResetVMContinuousRuntime(name, time.Now())
-			if err := ApplyVPCBindingRuntime(name); err != nil {
-				return fmt.Errorf("重置成功，但应用 VPC 网络失败: %w", err)
-			}
-			return nil
-		}
-		logger.Libvirt.Warn("重置失败，降级为 virsh", "domain", name, "error", err)
-	}
-	result := utils.ExecCommand("virsh", "reset", name)
-	if result.Error != nil {
-		return fmt.Errorf("重置失败: %s", result.Stderr)
+	if err := resetDomainRPC(name); err != nil {
+		return fmt.Errorf("重置失败: %w", err)
 	}
 	ResetVMContinuousRuntime(name, time.Now())
 	if err := ApplyVPCBindingRuntime(name); err != nil {
@@ -1100,23 +1010,8 @@ func SetVMAutostart(name string, autostart bool) error {
 	if err := EnsureVMNotMigrating(name, "设置开机自启"); err != nil {
 		return err
 	}
-	if IsLibvirtRPCAvailable() {
-		err := setDomainAutostartRPC(name, autostart)
-		if err == nil {
-			RefreshVMCacheByNameAsync(name)
-			return nil
-		}
-		logger.Libvirt.Warn("设置自动启动失败，降级为 virsh", "domain", name, "error", err)
-	}
-	var args []string
-	if autostart {
-		args = []string{"autostart", name}
-	} else {
-		args = []string{"autostart", name, "--disable"}
-	}
-	result := utils.ExecCommand("virsh", args...)
-	if result.Error != nil {
-		return fmt.Errorf("设置自动启动失败: %s", result.Stderr)
+	if err := setDomainAutostartRPC(name, autostart); err != nil {
+		return fmt.Errorf("设置自动启动失败: %w", err)
 	}
 	RefreshVMCacheByNameAsync(name)
 	return nil
@@ -2154,19 +2049,6 @@ func parseInfoInt(output, key string) int {
 	return 0
 }
 
-// parseInfoValue 从 virsh dominfo 输出中解析文本值
-func parseInfoValue(output, key string) string {
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, key) {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				return strings.TrimSpace(parts[1])
-			}
-		}
-	}
-	return ""
-}
 
 // parseMemStat 从 dommemstat 输出解析内存值（KB）
 func parseMemStat(output, key string) int64 {

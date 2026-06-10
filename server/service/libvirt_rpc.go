@@ -8,7 +8,6 @@ import (
 
 	"github.com/digitalocean/go-libvirt"
 
-	"kvm_console/config"
 	"kvm_console/logger"
 )
 
@@ -19,20 +18,13 @@ var (
 )
 
 // InitLibvirtRPC 初始化 go-libvirt RPC 连接（程序启动时调用）
-// 连接失败不影响程序启动，后续会降级为 virsh
-func InitLibvirtRPC() {
-	logger.Libvirt.Info("开始初始化", "useGoLibvirt", config.GlobalConfig.UseGoLibvirt, "socket", libvirtSocket)
-
-	if !config.GlobalConfig.UseGoLibvirt {
-		logger.Libvirt.Info("配置已禁用 go-libvirt，跳过初始化")
-		return
-	}
+// 连接失败直接返回错误，阻止程序启动
+func InitLibvirtRPC() error {
+	logger.Libvirt.Info("开始初始化", "socket", libvirtSocket)
 
 	l, err := dialLibvirt()
 	if err != nil {
-		logger.Libvirt.Warn("初始化连接失败，将降级为 virsh 命令行", "error", err)
-		startBackgroundReconnect()
-		return
+		return fmt.Errorf("go-libvirt 初始化连接失败: %w", err)
 	}
 
 	libvirtConnMu.Lock()
@@ -46,6 +38,8 @@ func InitLibvirtRPC() {
 	} else {
 		logger.Libvirt.Info("连接初始化成功", "version_major", ver/1000000, "version_minor", (ver/1000)%1000, "version_patch", ver%1000)
 	}
+
+	return nil
 }
 
 // GetLibvirt 获取 libvirt RPC 连接（单例，自动重连）
@@ -85,9 +79,6 @@ func GetLibvirt() (*libvirt.Libvirt, error) {
 // 用于在各函数入口快速判断是否尝试 RPC 路径
 // 纯内存检查，O(1) 性能，不做网络操作
 func IsLibvirtRPCAvailable() bool {
-	if config.GlobalConfig == nil || !config.GlobalConfig.UseGoLibvirt {
-		return false
-	}
 	libvirtConnMu.RLock()
 	available := libvirtConn != nil
 	libvirtConnMu.RUnlock()
@@ -127,33 +118,6 @@ func reconnectLibvirt() (*libvirt.Libvirt, error) {
 	}
 
 	return nil, fmt.Errorf("重连失败（已重试 3 次）: %w", lastErr)
-}
-
-// startBackgroundReconnect 在初始化失败时启动后台重连
-// 最多重试 5 次，间隔递增 (5s, 10s, 15s, 20s, 25s)
-func startBackgroundReconnect() {
-	go func() {
-		for i := 0; i < 5; i++ {
-			time.Sleep(time.Duration(5*(i+1)) * time.Second)
-
-			if !config.GlobalConfig.UseGoLibvirt {
-				return
-			}
-
-			l, err := dialLibvirt()
-			if err != nil {
-				logger.Libvirt.Warn("后台重连失败", "attempt", i+1, "error", err)
-				continue
-			}
-
-			libvirtConnMu.Lock()
-			libvirtConn = l
-			libvirtConnMu.Unlock()
-			logger.Libvirt.Info("后台重连成功")
-			return
-		}
-		logger.Libvirt.Warn("后台重连放弃，将持续使用 virsh 命令行", "attempts", 5)
-	}()
 }
 
 // dialLibvirt 建立单次 go-libvirt RPC 连接

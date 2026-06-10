@@ -10,7 +10,6 @@ import (
 
 	"kvm_console/logger"
 	"kvm_console/model"
-	"kvm_console/utils"
 )
 
 // ==================== 资源采集缓存 ====================
@@ -85,21 +84,11 @@ func collectHostStats() {
 func collectAllVMStats() {
 	SyncVMRuntimeStatesFromHost(time.Now())
 
-	// 获取运行中的VM列表（优先 RPC）
-	var names []string
-	if IsLibvirtRPCAvailable() {
-		if rpcNames, err := getRunningVMNamesRPC(); err == nil {
-			names = rpcNames
-		} else {
-			logger.Libvirt.Warn("获取运行中 VM 列表失败，降级为 virsh", "error", err)
-		}
-	}
-	if names == nil {
-		result := utils.ExecShell("virsh list --name --state-running 2>/dev/null | grep -v '^$'")
-		if result.Error != nil {
-			return
-		}
-		names = strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	// 获取运行中的VM列表
+	names, err := getRunningVMNamesRPC()
+	if err != nil {
+		logger.Libvirt.Error("获取运行中 VM 列表失败", "error", err)
+		return
 	}
 
 	runningSet := make(map[string]bool)
@@ -111,23 +100,10 @@ func collectAllVMStats() {
 		}
 		runningSet[name] = true
 
-		var stats *VmStats
-		var err error
-
-		// 优先尝试 go-libvirt RPC 采集
-		if IsLibvirtRPCAvailable() {
-			stats, err = collectVMStatsRPC(name)
-			if err != nil {
-				logger.Libvirt.Warn("采集 VM 统计失败，降级为 virsh", "vm", name, "error", err)
-			}
-		}
-
-		// fallback: 原有 virsh 逻辑
-		if stats == nil {
-			stats, err = GetVMStats(name)
-			if err != nil {
-				continue
-			}
+		stats, err := collectVMStatsRPC(name)
+		if err != nil {
+			logger.Libvirt.Warn("采集 VM 统计失败", "vm", name, "error", err)
+			continue
 		}
 
 		statsCache.Lock()

@@ -293,38 +293,15 @@ func upsertVMCacheRecord(record model.VMCache) error {
 }
 
 func defaultVMCacheListNamesFromHost() ([]string, error) {
-	// 优先使用 go-libvirt RPC
-	if IsLibvirtRPCAvailable() {
-		domains, err := listAllDomainsRPC()
-		if err == nil {
-			names := make([]string, 0, len(domains))
-			for _, dom := range domains {
-				if dom.Name != "" {
-					names = append(names, dom.Name)
-				}
-			}
-			return names, nil
-		}
-		logger.Libvirt.Warn("listAllDomainsRPC 失败，降级为 virsh", "error", err)
+	domains, err := listAllDomainsRPC()
+	if err != nil {
+		return nil, fmt.Errorf("获取虚拟机列表失败: %w", err)
 	}
-
-	// fallback: 原有 virsh 逻辑
-	result := utils.ExecCommand("virsh", "list", "--all", "--name")
-	if result.Error != nil {
-		if IsMaintenanceModeEnabled() && (isLibvirtUnavailableText(result.Stderr) || IsLibvirtUnavailableError(result.Error)) {
-			return nil, result.Error
+	names := make([]string, 0, len(domains))
+	for _, dom := range domains {
+		if dom.Name != "" {
+			names = append(names, dom.Name)
 		}
-		return nil, result.Error
-	}
-
-	lines := strings.Split(result.Stdout, "\n")
-	names := make([]string, 0, len(lines))
-	for _, line := range lines {
-		name := strings.TrimSpace(line)
-		if name == "" {
-			continue
-		}
-		names = append(names, name)
 	}
 	return names, nil
 }
@@ -337,57 +314,17 @@ func defaultVMCacheBuildRecordFromHost(name string, syncedAt time.Time) (model.V
 		LastSyncedAt:  syncedAt,
 	}
 
-	var vcpu int
-	var maxMemKB, usedMemKB uint64
-	var autostart bool
-	var status string
-	var dominfoViaRPC bool
-
-	// 优先使用 go-libvirt RPC 替代 virsh dominfo / domstate
-	if IsLibvirtRPCAvailable() {
-		vcpuRPC, maxMemKB_RPC, usedMemKB_RPC, autostartRPC, infoErr := getDomainInfoRPC(name)
-		if infoErr != nil {
-			if isDomainNotFoundError(infoErr) {
-				return model.VMCache{}, errVMCacheSourceMissing
-			}
-			logger.Libvirt.Warn("getDomainInfoRPC 失败，降级为 virsh", "domain", name, "error", infoErr)
-		} else {
-			vcpu = vcpuRPC
-			maxMemKB = maxMemKB_RPC
-			usedMemKB = usedMemKB_RPC
-			autostart = autostartRPC
-			dominfoViaRPC = true
+	vcpu, maxMemKB, usedMemKB, autostart, infoErr := getDomainInfoRPC(name)
+	if infoErr != nil {
+		if isDomainNotFoundError(infoErr) {
+			return model.VMCache{}, errVMCacheSourceMissing
 		}
-
-		statusRPC, stateErr := getDomainStateRPC(name)
-		if stateErr != nil {
-			logger.Libvirt.Warn("getDomainStateRPC 失败，降级为 virsh", "domain", name, "error", stateErr)
-		} else {
-			status = statusRPC
-		}
+		return model.VMCache{}, fmt.Errorf("获取虚拟机信息失败: %w", infoErr)
 	}
 
-	// fallback: virsh dominfo
-	if !dominfoViaRPC {
-		domInfoResult := utils.ExecCommand("virsh", "dominfo", name)
-		if domInfoResult.Error != nil {
-			if isVMCacheSourceMissingResult(domInfoResult) {
-				return model.VMCache{}, errVMCacheSourceMissing
-			}
-			return model.VMCache{}, domInfoResult.Error
-		}
-		vcpu = parseInfoInt(domInfoResult.Stdout, "CPU(s):")
-		maxMemKB = uint64(parseInfoInt(domInfoResult.Stdout, "Max memory:"))
-		usedMemKB = uint64(parseInfoInt(domInfoResult.Stdout, "Used memory:"))
-		autostart = strings.Contains(domInfoResult.Stdout, "Autostart:      enable")
-	}
-
-	// fallback: virsh domstate
-	if status == "" {
-		stateResult := utils.ExecCommand("virsh", "domstate", name)
-		if stateResult.Error == nil {
-			status = strings.TrimSpace(stateResult.Stdout)
-		}
+	status, stateErr := getDomainStateRPC(name)
+	if stateErr != nil {
+		return model.VMCache{}, fmt.Errorf("获取虚拟机状态失败: %w", stateErr)
 	}
 	UpdateVMRuntimeState(name, status, syncedAt)
 
@@ -467,16 +404,6 @@ func readVMCreatedAtText(name string) string {
 		return ""
 	}
 	return time.Unix(createdSeconds, 0).Format("2006-01-02 15:04:05")
-}
-
-func isVMCacheSourceMissingResult(result *utils.CmdResult) bool {
-	if result == nil {
-		return false
-	}
-	message := strings.ToLower(strings.TrimSpace(result.Stdout + "\n" + result.Stderr))
-	return strings.Contains(message, "domain not found") ||
-		strings.Contains(message, "failed to get domain") ||
-		strings.Contains(message, "no domain with matching name")
 }
 
 func UpdateVMCacheOwner(name, owner string) {

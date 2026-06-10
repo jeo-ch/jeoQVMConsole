@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"kvm_console/logger"
 	"kvm_console/utils"
 )
 
@@ -279,20 +278,9 @@ func setVMCPUWithTopologySync(name string, vcpu, maxVCPU int) error {
 		}
 	}
 
-	if IsLibvirtRPCAvailable() {
-		_, err := defineDomainXMLRPC(xmlStr)
-		if err == nil {
-			return nil
-		}
-		logger.Libvirt.Warn("define 失败，降级为 virsh", "domain", name, "error", err)
-	}
-
-	xmlPath := fmt.Sprintf("/tmp/_cpu-topology-sync-%s.xml", name)
-	utils.ExecShell(fmt.Sprintf("cat > %s << 'XMLEOF'\n%s\nXMLEOF", utils.ShellSingleQuote(xmlPath), xmlStr))
-	defineResult := utils.ExecCommand("virsh", "define", xmlPath)
-	utils.ExecShell(fmt.Sprintf("rm -f %s", utils.ShellSingleQuote(xmlPath)))
-	if defineResult.Error != nil {
-		return fmt.Errorf("设置 CPU 失败: %s", defineResult.Stderr)
+	_, err := defineDomainXMLRPC(xmlStr)
+	if err != nil {
+		return fmt.Errorf("设置 CPU 拓扑失败: %w", err)
 	}
 	return nil
 }

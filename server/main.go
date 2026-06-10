@@ -56,8 +56,10 @@ func main() {
 	logger.App.Info("已从数据库加载持久化系统设置", "count", len(savedSettings))
 	}
 
-	// 初始化 go-libvirt RPC 连接（失败不影响启动，降级为 virsh）
-	service.InitLibvirtRPC()
+	// 初始化 go-libvirt RPC 连接（连接失败阻止启动）
+	if err := service.InitLibvirtRPC(); err != nil {
+		log.Fatal("go-libvirt 连接失败，程序无法启动: ", err)
+	}
 	defer service.CloseLibvirt()
 
 	if err := service.BootstrapVMCacheFromHost(); err != nil {
