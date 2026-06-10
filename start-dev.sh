@@ -86,7 +86,7 @@ echo ""
 # KVM_LOG_CONSOLE_LEVEL 终端独立日志级别（留空跟随 KVM_LOG_LEVEL）
 #                       示例: 终端只看warn以上 → "warn"
 export KVM_LOG_CONSOLE_TYPES=""
-export KVM_LOG_CONSOLE_LEVEL=""
+export KVM_LOG_CONSOLE_LEVEL="warn"
 # ====================================================
 
 info "启动后端 (air 热重载)..."

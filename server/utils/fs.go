@@ -61,6 +61,33 @@ func GetUserIDs(username, groupname string) (uid, gid int, err error) {
 	return uid, gid, nil
 }
 
+// FileExists 使用 Go 原生 os.Stat 检查文件是否存在（非目录）
+func FileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+// FileReadable 检查文件是否存在且可读
+func FileReadable(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	if info.IsDir() {
+		return false
+	}
+	// 尝试打开文件验证可读性
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
+}
+
 // ChownLibvirtQEMU 尝试将文件 chown 为 libvirt-qemu:kvm，失败则回退到 qemu:qemu
 // 返回错误仅当两次尝试都失败时
 func ChownLibvirtQEMU(path string) error {

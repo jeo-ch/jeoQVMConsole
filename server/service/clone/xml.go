@@ -40,8 +40,7 @@ func prepareUEFITemplateNVRAMForClone(domainXML, vmName, templateNVRAMPath strin
 	if templateNVRAMPath == "" {
 		return domainXML, nil
 	}
-	checkTemplate := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(templateNVRAMPath)))
-	if strings.TrimSpace(checkTemplate.Stdout) != "ok" {
+	if !utils.FileExists(templateNVRAMPath) {
 		return domainXML, nil
 	}
 	cloneNVRAMPath := extractDomainNVRAMPath(domainXML)

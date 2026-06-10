@@ -9,53 +9,54 @@ import (
 	"strings"
 	"time"
 
-	"github.com/digitalocean/go-libvirt"
 	"kvm_console/config"
 	"kvm_console/logger"
-	"kvm_console/service/libvirt_rpc"
 	clonepkg "kvm_console/service/clone"
+	"kvm_console/service/libvirt_rpc"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
+
+	"github.com/digitalocean/go-libvirt"
 )
 
 // LinkedCloneParams 原生链式克隆参数
 type LinkedCloneParams struct {
-	Name                string                  `json:"name"`
-	Remark              string                  `json:"remark,omitempty"`
-	Template            string                  `json:"template"`
-	TemplateType        string                  `json:"template_type,omitempty"`
-	CloneMode           string                  `json:"clone_mode,omitempty"` // 克隆模式: linked（链式克隆，默认）/ full（完整克隆）
-	VCPU                int                     `json:"vcpu"`
-	MaxVCPU             int                     `json:"max_vcpu,omitempty"`               // CPU 热添加上限
-	RAM                 int                     `json:"ram"`
-	DiskSize            int                     `json:"disk_size,omitempty"`
-	Network             string                  `json:"network,omitempty"`
-	Autostart           bool                    `json:"autostart,omitempty"`
-	Freeze              bool                    `json:"freeze,omitempty"`
-	APIC                *bool                   `json:"apic,omitempty"`
-	PAE                 *bool                   `json:"pae,omitempty"`
-	RTCOffset           string                  `json:"rtc_offset,omitempty"`
-	RTCStartDate        string                  `json:"rtc_startdate,omitempty"`
-	GuestAgent          *vm_xml.VMGuestAgentConfig `json:"guest_agent,omitempty"`
-	SMBIOS1             *vm_xml.VMSMBIOS1Config    `json:"smbios1,omitempty"`
-	BootType            string                  `json:"boot_type,omitempty"`
-	DiskBus             string                  `json:"disk_bus,omitempty"`
-	VideoModel          string                  `json:"video_model,omitempty"`
-	CPUTopologyMode     string                  `json:"cpu_topology_mode,omitempty"`
-	CPULimitPercent     int                     `json:"cpu_limit_percent,omitempty"`
-	CPUAffinity         string                  `json:"cpu_affinity,omitempty"`    // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode string                  `json:"first_boot_reboot_mode,omitempty"`
+	Name                string                         `json:"name"`
+	Remark              string                         `json:"remark,omitempty"`
+	Template            string                         `json:"template"`
+	TemplateType        string                         `json:"template_type,omitempty"`
+	CloneMode           string                         `json:"clone_mode,omitempty"` // 克隆模式: linked（链式克隆，默认）/ full（完整克隆）
+	VCPU                int                            `json:"vcpu"`
+	MaxVCPU             int                            `json:"max_vcpu,omitempty"` // CPU 热添加上限
+	RAM                 int                            `json:"ram"`
+	DiskSize            int                            `json:"disk_size,omitempty"`
+	Network             string                         `json:"network,omitempty"`
+	Autostart           bool                           `json:"autostart,omitempty"`
+	Freeze              bool                           `json:"freeze,omitempty"`
+	APIC                *bool                          `json:"apic,omitempty"`
+	PAE                 *bool                          `json:"pae,omitempty"`
+	RTCOffset           string                         `json:"rtc_offset,omitempty"`
+	RTCStartDate        string                         `json:"rtc_startdate,omitempty"`
+	GuestAgent          *vm_xml.VMGuestAgentConfig     `json:"guest_agent,omitempty"`
+	SMBIOS1             *vm_xml.VMSMBIOS1Config        `json:"smbios1,omitempty"`
+	BootType            string                         `json:"boot_type,omitempty"`
+	DiskBus             string                         `json:"disk_bus,omitempty"`
+	VideoModel          string                         `json:"video_model,omitempty"`
+	CPUTopologyMode     string                         `json:"cpu_topology_mode,omitempty"`
+	CPULimitPercent     int                            `json:"cpu_limit_percent,omitempty"`
+	CPUAffinity         string                         `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode string                         `json:"first_boot_reboot_mode,omitempty"`
 	MemoryDynamic       *memory.VMMemoryDynamicRequest `json:"memory_dynamic,omitempty"`
-	SwitchID            uint                    `json:"switch_id,omitempty"`
-	SecurityGroupID     uint                    `json:"security_group_id,omitempty"`
-	ExtraNics           []AddVMInterfaceRequest `json:"extra_nics,omitempty"`
-	StoragePoolID       string                  `json:"storage_pool_id,omitempty"`
-	ExtraDisks          []ExtraDiskParam        `json:"extra_disks,omitempty"`
-	NicModel            string                  `json:"nic_model,omitempty"`
-	SystemDiskIOPS      *DiskIOPSTune           `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制
-	IsAdmin             bool                    `json:"is_admin,omitempty"`
-	PCIERootPorts       int                     `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	SwitchID            uint                           `json:"switch_id,omitempty"`
+	SecurityGroupID     uint                           `json:"security_group_id,omitempty"`
+	ExtraNics           []AddVMInterfaceRequest        `json:"extra_nics,omitempty"`
+	StoragePoolID       string                         `json:"storage_pool_id,omitempty"`
+	ExtraDisks          []ExtraDiskParam               `json:"extra_disks,omitempty"`
+	NicModel            string                         `json:"nic_model,omitempty"`
+	SystemDiskIOPS      *DiskIOPSTune                  `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制
+	IsAdmin             bool                           `json:"is_admin,omitempty"`
+	PCIERootPorts       int                            `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 }
 
 // LinkedCloneResult 原生链式克隆结果
@@ -104,8 +105,7 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 	params.BootType = strings.TrimSpace(params.BootType)
 
 	templatePath := filepath.Join(templateDir, params.Template+".qcow2")
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(templatePath)))
-	if checkResult.Stdout != "ok" {
+	if !utils.FileExists(templatePath) {
 		return nil, fmt.Errorf("模板不存在: %s", params.Template)
 	}
 

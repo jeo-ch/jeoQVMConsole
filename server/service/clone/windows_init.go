@@ -122,8 +122,7 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 		nvramTemplate := filepath.Join(templateDir, "win2k22-nvram.fd")
 		nvramClone = fmt.Sprintf("/var/lib/libvirt/qemu/nvram/%s_VARS.fd", params.Name)
 
-		checkNvram := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(nvramTemplate)))
-		if checkNvram.Stdout == "ok" {
+		if utils.FileExists(nvramTemplate) {
 			if err := vm_xml.CreateQCOW2NVRAMFromTemplate(nvramTemplate, nvramClone); err != nil {
 				return err
 			}

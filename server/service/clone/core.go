@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/digitalocean/go-libvirt"
 	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/service/ip_resolver"
@@ -17,6 +16,8 @@ import (
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 	"kvm_console/utils"
+
+	"github.com/digitalocean/go-libvirt"
 )
 
 // CheckCanceled 检查任务是否已被取消，如果已取消执行清理并返回错误
@@ -65,8 +66,7 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 
 	// 确定模板路径
 	templatePath := filepath.Join(templateDir, params.Template+".qcow2")
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(templatePath)))
-	if checkResult.Stdout != "ok" {
+	if !utils.FileExists(templatePath) {
 		return nil, fmt.Errorf("模板不存在: %s", params.Template)
 	}
 

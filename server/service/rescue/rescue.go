@@ -44,8 +44,7 @@ func StartRescue(vmName, rescueISO string, progress func(int, string)) error {
 	}
 
 	// 检查 ISO 文件是否存在
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(rescueISO)))
-	if strings.TrimSpace(checkResult.Stdout) != "ok" {
+	if !utils.FileExists(rescueISO) {
 		return fmt.Errorf("救援 ISO 文件不存在: %s", rescueISO)
 	}
 
@@ -192,9 +191,7 @@ func StopRescue(vmName string, progress func(int, string)) error {
 // IsInRescueMode 判断虚拟机是否处于救援模式
 // 检查方式: 救援临时配置文件是否存在
 func IsInRescueMode(vmName string) bool {
-	configPath := rescueConfigPath(vmName)
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(configPath)))
-	return strings.TrimSpace(checkResult.Stdout) == "ok"
+	return utils.FileExists(rescueConfigPath(vmName))
 }
 
 // ==================== 内部辅助函数 ====================

@@ -67,8 +67,7 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	if !filepath.IsAbs(mainDiskSrc) {
 		return nil, fmt.Errorf("磁盘路径必须是绝对路径: %s", mainDiskSrc)
 	}
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(mainDiskSrc)))
-	if strings.TrimSpace(checkResult.Stdout) != "ok" {
+	if !utils.FileExists(mainDiskSrc) {
 		return nil, fmt.Errorf("磁盘文件不存在: %s", mainDiskSrc)
 	}
 
@@ -314,8 +313,7 @@ func importSingleDiskToVM(ctx context.Context, vmName string, entry *ExtraImport
 	}
 
 	// 检查源文件
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(srcDiskPath)))
-	if strings.TrimSpace(checkResult.Stdout) != "ok" {
+	if !utils.FileExists(srcDiskPath) {
 		return "", fmt.Errorf("磁盘文件不存在: %s", srcDiskPath)
 	}
 

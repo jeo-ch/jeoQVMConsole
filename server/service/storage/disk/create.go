@@ -164,14 +164,12 @@ func AttachExistingDisk(vmName, diskPath, bus string) (string, error) {
 	}
 
 	// check file exists
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(diskPath)))
-	if checkResult.Stdout != "ok" {
+	if !utils.FileExists(diskPath) {
 		return "", fmt.Errorf("磁盘文件不存在: %s", diskPath)
 	}
 
 	// check file readability (ensure libvirt has permissions)
-	readResult := utils.ExecShell(fmt.Sprintf("test -r %s && echo ok", utils.ShellSingleQuote(diskPath)))
-	if strings.TrimSpace(readResult.Stdout) != "ok" {
+	if !utils.FileReadable(diskPath) {
 		return "", fmt.Errorf("磁盘文件不可读（权限不足）: %s，请确保文件归 libvirt-qemu:kvm 所有", diskPath)
 	}
 

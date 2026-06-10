@@ -64,8 +64,7 @@ func ImportVM(ctx context.Context, params *ImportVMParams, progressFn func(int, 
 	srcDiskPath := filepath.Join(service.GetUserDiskDir(params.Username), params.DiskFile)
 
 	// 检查源文件是否存在
-	checkResult := utils.ExecShell(fmt.Sprintf("test -f %s && echo ok", utils.ShellSingleQuote(srcDiskPath)))
-	if checkResult.Stdout != "ok" {
+	if !utils.FileExists(srcDiskPath) {
 		return nil, fmt.Errorf("磁盘文件不存在: %s", params.DiskFile)
 	}
 	if err := service.EnsureOVSNetworkReady(); err != nil {
