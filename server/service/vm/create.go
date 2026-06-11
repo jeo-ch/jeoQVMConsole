@@ -16,48 +16,48 @@ import (
 
 // CreateVMParams 普通创建虚拟机参数（不通过模板）
 type CreateVMParams struct {
-	Name            string                  `json:"name"`
-	Remark          string                  `json:"remark,omitempty"`
-	VCPU            int                     `json:"vcpu"`
-	MaxVCPU         int                     `json:"max_vcpu,omitempty"` // CPU 热添加上限，0 或 <= vcpu 表示不启用热添加
-	RAM             int                     `json:"ram"`
-	DiskSize        int                     `json:"disk_size"`
-	DiskFormat      string                  `json:"disk_format,omitempty"`
-	DiskBus         string                  `json:"disk_bus,omitempty"` // 磁盘总线类型: virtio/scsi/sata/ide
-	OSVariant       string                  `json:"os_variant,omitempty"`
-	ISOPath         string                  `json:"iso_path,omitempty"`
-	ISOPaths        []string                `json:"iso_paths,omitempty"`
-	Network         string                  `json:"network,omitempty"`
-	NicModel        string                  `json:"nic_model,omitempty"` // 网卡模型: virtio/e1000e/rtl8139
-	Autostart       bool                    `json:"autostart,omitempty"`
-	Freeze          bool                    `json:"freeze,omitempty"` // 启动时冻结 CPU
-	APIC            *bool                   `json:"apic,omitempty"`   // APIC 开关，默认启用
-	PAE             *bool                   `json:"pae,omitempty"`    // PAE 开关，默认启用
-	RTCOffset       string                  `json:"rtc_offset,omitempty"`
-	RTCStartDate    string                  `json:"rtc_startdate,omitempty"`
-	GuestAgent      *vm_xml.VMGuestAgentConfig `json:"guest_agent,omitempty"`
-	SMBIOS1         *vm_xml.VMSMBIOS1Config    `json:"smbios1,omitempty"`
-	OSType          string                  `json:"os_type,omitempty"`
-	MachineType     string                  `json:"machine_type,omitempty"`
-	BootType        string                  `json:"boot_type,omitempty"`
-	Watchdog        string                  `json:"watchdog,omitempty"`
-	BootOrder       []string                `json:"boot_order,omitempty"`
-	VideoModel      string                  `json:"video_model,omitempty"` // 视频模型: virtio/vga/vmvga/cirrus
-	CPUTopologyMode string                  `json:"cpu_topology_mode,omitempty"`
-	CPULimitPercent int                     `json:"cpu_limit_percent,omitempty"`
-	CPUAffinity     string                  `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"，空字符串表示不设置
-	VirtType        string                  `json:"virt_type,omitempty"`    // 虚拟化方案: kvm/qemu，默认 kvm
-	Arch            string                  `json:"arch,omitempty"`         // 目标架构: x86_64/aarch64/riscv64
-	ExtraDisks      []ExtraDiskParam        `json:"extra_disks,omitempty"`
+	Name            string                         `json:"name"`
+	Remark          string                         `json:"remark,omitempty"`
+	VCPU            int                            `json:"vcpu"`
+	MaxVCPU         int                            `json:"max_vcpu,omitempty"` // CPU 热添加上限，0 或 <= vcpu 表示不启用热添加
+	RAM             int                            `json:"ram"`
+	DiskSize        int                            `json:"disk_size"`
+	DiskFormat      string                         `json:"disk_format,omitempty"`
+	DiskBus         string                         `json:"disk_bus,omitempty"` // 磁盘总线类型: virtio/scsi/sata/ide
+	OSVariant       string                         `json:"os_variant,omitempty"`
+	ISOPath         string                         `json:"iso_path,omitempty"`
+	ISOPaths        []string                       `json:"iso_paths,omitempty"`
+	Network         string                         `json:"network,omitempty"`
+	NicModel        string                         `json:"nic_model,omitempty"` // 网卡模型: virtio/e1000e/rtl8139
+	Autostart       bool                           `json:"autostart,omitempty"`
+	Freeze          bool                           `json:"freeze,omitempty"` // 启动时冻结 CPU
+	APIC            *bool                          `json:"apic,omitempty"`   // APIC 开关，默认启用
+	PAE             *bool                          `json:"pae,omitempty"`    // PAE 开关，默认启用
+	RTCOffset       string                         `json:"rtc_offset,omitempty"`
+	RTCStartDate    string                         `json:"rtc_startdate,omitempty"`
+	GuestAgent      *vm_xml.VMGuestAgentConfig     `json:"guest_agent,omitempty"`
+	SMBIOS1         *vm_xml.VMSMBIOS1Config        `json:"smbios1,omitempty"`
+	OSType          string                         `json:"os_type,omitempty"`
+	MachineType     string                         `json:"machine_type,omitempty"`
+	BootType        string                         `json:"boot_type,omitempty"`
+	Watchdog        string                         `json:"watchdog,omitempty"`
+	BootOrder       []string                       `json:"boot_order,omitempty"`
+	VideoModel      string                         `json:"video_model,omitempty"` // 视频模型: virtio/vga/vmvga/cirrus
+	CPUTopologyMode string                         `json:"cpu_topology_mode,omitempty"`
+	CPULimitPercent int                            `json:"cpu_limit_percent,omitempty"`
+	CPUAffinity     string                         `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"，空字符串表示不设置
+	VirtType        string                         `json:"virt_type,omitempty"`    // 虚拟化方案: kvm/qemu，默认 kvm
+	Arch            string                         `json:"arch,omitempty"`         // 目标架构: x86_64/aarch64/riscv64
+	ExtraDisks      []ExtraDiskParam               `json:"extra_disks,omitempty"`
 	MemoryDynamic   *memory.VMMemoryDynamicRequest `json:"memory_dynamic,omitempty"`
-	SystemDiskIOPS  *DiskIOPSTune           `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制（仅管理员）
-	SwitchID        uint                    `json:"switch_id,omitempty"`
-	SecurityGroupID uint                    `json:"security_group_id,omitempty"`
-	ExtraNics       []AddVMInterfaceRequest `json:"extra_nics,omitempty"`
-	StoragePoolID   string                  `json:"storage_pool_id,omitempty"`
-	HostDevices     []HostDeviceParam       `json:"host_devices,omitempty"` // 硬件直通设备
-	IsAdmin         bool                    `json:"is_admin,omitempty"`
-	PCIERootPorts   int                     `json:"pcie_root_ports,omitempty"` // q35 机型预留 pcie-root-port 数量，0 表示使用默认 4
+	SystemDiskIOPS  *DiskIOPSTune                  `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制（仅管理员）
+	SwitchID        uint                           `json:"switch_id,omitempty"`
+	SecurityGroupID uint                           `json:"security_group_id,omitempty"`
+	ExtraNics       []AddVMInterfaceRequest        `json:"extra_nics,omitempty"`
+	StoragePoolID   string                         `json:"storage_pool_id,omitempty"`
+	HostDevices     []HostDeviceParam              `json:"host_devices,omitempty"` // 硬件直通设备
+	IsAdmin         bool                           `json:"is_admin,omitempty"`
+	PCIERootPorts   int                            `json:"pcie_root_ports,omitempty"` // q35 机型预留 pcie-root-port 数量，0 表示使用默认 6
 }
 
 // ExtraDiskParam is now defined in storage/disk package; alias in disk_compat.go.
@@ -276,8 +276,12 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 		cmdParts = append(cmdParts, "--osinfo detect=on,require=off")
 	}
 
-	// 网络
-	cmdParts = append(cmdParts, D.BuildOVSVirtInstallNetworkArg(params.NicModel))
+	// 网络：仅在有主网口交换机配置时才添加网络接口，否则显式禁用
+	if params.SwitchID != 0 {
+		cmdParts = append(cmdParts, D.BuildOVSVirtInstallNetworkArg(params.NicModel))
+	} else {
+		cmdParts = append(cmdParts, "--network none")
+	}
 
 	// 显示设备
 	cmdParts = append(cmdParts, "--graphics vnc,listen=0.0.0.0")
@@ -353,10 +357,10 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	enableFPR := params.OSType != "windows"
 	vmXML := D.InjectMemballoonConfig(xmlOutput, enableFPR)
 
-	// 注入 pcie-root-port 控制器（q35 机型热插拔预留，默认 4 个）
+	// 注入 pcie-root-port 控制器（q35 机型热插拔预留，默认 6 个）
 	pciePortCount := params.PCIERootPorts
 	if pciePortCount <= 0 {
-		pciePortCount = 4
+		pciePortCount = 6
 	}
 	vmXML = InjectPCIERootPorts(vmXML, pciePortCount)
 

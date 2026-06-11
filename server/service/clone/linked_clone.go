@@ -21,41 +21,41 @@ import (
 
 // LinkedCloneParams 原生链式克隆参数
 type LinkedCloneParams struct {
-	Name                string                      `json:"name"`
-	Remark              string                      `json:"remark,omitempty"`
-	Template            string                      `json:"template"`
-	TemplateType        string                      `json:"template_type,omitempty"`
-	CloneMode           string                      `json:"clone_mode,omitempty"` // 克隆模式: linked（链式克隆，默认）/ full（完整克隆）
-	VCPU                int                         `json:"vcpu"`
-	MaxVCPU             int                         `json:"max_vcpu,omitempty"` // CPU 热添加上限
-	RAM                 int                         `json:"ram"`
-	DiskSize            int                         `json:"disk_size,omitempty"`
-	Network             string                      `json:"network,omitempty"`
-	Autostart           bool                        `json:"autostart,omitempty"`
-	Freeze              bool                        `json:"freeze,omitempty"`
-	APIC                *bool                       `json:"apic,omitempty"`
-	PAE                 *bool                       `json:"pae,omitempty"`
-	RTCOffset           string                      `json:"rtc_offset,omitempty"`
-	RTCStartDate        string                      `json:"rtc_startdate,omitempty"`
-	GuestAgent          *VMGuestAgentConfig         `json:"guest_agent,omitempty"`
-	SMBIOS1             *VMSMBIOS1Config            `json:"smbios1,omitempty"`
-	BootType            string                      `json:"boot_type,omitempty"`
-	DiskBus             string                      `json:"disk_bus,omitempty"`
-	VideoModel          string                      `json:"video_model,omitempty"`
-	CPUTopologyMode     string                      `json:"cpu_topology_mode,omitempty"`
-	CPULimitPercent     int                         `json:"cpu_limit_percent,omitempty"`
-	CPUAffinity         string                      `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode string                      `json:"first_boot_reboot_mode,omitempty"`
-	MemoryDynamic       *VMMemoryDynamicRequest     `json:"memory_dynamic,omitempty"`
-	SwitchID            uint                        `json:"switch_id,omitempty"`
-	SecurityGroupID     uint                        `json:"security_group_id,omitempty"`
-	ExtraNics           []AddVMInterfaceRequest     `json:"extra_nics,omitempty"`
-	StoragePoolID       string                      `json:"storage_pool_id,omitempty"`
-	ExtraDisks          []ExtraDiskParam            `json:"extra_disks,omitempty"`
-	NicModel            string                      `json:"nic_model,omitempty"`
-	SystemDiskIOPS      *DiskIOPSTune              `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制
-	IsAdmin             bool                        `json:"is_admin,omitempty"`
-	PCIERootPorts       int                         `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
+	Name                string                  `json:"name"`
+	Remark              string                  `json:"remark,omitempty"`
+	Template            string                  `json:"template"`
+	TemplateType        string                  `json:"template_type,omitempty"`
+	CloneMode           string                  `json:"clone_mode,omitempty"` // 克隆模式: linked（链式克隆，默认）/ full（完整克隆）
+	VCPU                int                     `json:"vcpu"`
+	MaxVCPU             int                     `json:"max_vcpu,omitempty"` // CPU 热添加上限
+	RAM                 int                     `json:"ram"`
+	DiskSize            int                     `json:"disk_size,omitempty"`
+	Network             string                  `json:"network,omitempty"`
+	Autostart           bool                    `json:"autostart,omitempty"`
+	Freeze              bool                    `json:"freeze,omitempty"`
+	APIC                *bool                   `json:"apic,omitempty"`
+	PAE                 *bool                   `json:"pae,omitempty"`
+	RTCOffset           string                  `json:"rtc_offset,omitempty"`
+	RTCStartDate        string                  `json:"rtc_startdate,omitempty"`
+	GuestAgent          *VMGuestAgentConfig     `json:"guest_agent,omitempty"`
+	SMBIOS1             *VMSMBIOS1Config        `json:"smbios1,omitempty"`
+	BootType            string                  `json:"boot_type,omitempty"`
+	DiskBus             string                  `json:"disk_bus,omitempty"`
+	VideoModel          string                  `json:"video_model,omitempty"`
+	CPUTopologyMode     string                  `json:"cpu_topology_mode,omitempty"`
+	CPULimitPercent     int                     `json:"cpu_limit_percent,omitempty"`
+	CPUAffinity         string                  `json:"cpu_affinity,omitempty"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode string                  `json:"first_boot_reboot_mode,omitempty"`
+	MemoryDynamic       *VMMemoryDynamicRequest `json:"memory_dynamic,omitempty"`
+	SwitchID            uint                    `json:"switch_id,omitempty"`
+	SecurityGroupID     uint                    `json:"security_group_id,omitempty"`
+	ExtraNics           []AddVMInterfaceRequest `json:"extra_nics,omitempty"`
+	StoragePoolID       string                  `json:"storage_pool_id,omitempty"`
+	ExtraDisks          []ExtraDiskParam        `json:"extra_disks,omitempty"`
+	NicModel            string                  `json:"nic_model,omitempty"`
+	SystemDiskIOPS      *DiskIOPSTune           `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制
+	IsAdmin             bool                    `json:"is_admin,omitempty"`
+	PCIERootPorts       int                     `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 }
 
 // LinkedCloneResult 原生链式克隆结果
@@ -222,12 +222,19 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		"--machine q35",
 		fmt.Sprintf("--disk %s,format=qcow2,bus=%s,discard=unmap,detect_zeroes=unmap", utils.ShellSingleQuote(cloneDisk), params.DiskBus),
 		"--osinfo detect=on,require=off",
-		D.BuildOVSVirtInstallNetworkArg(params.NicModel),
+	}
+	// 仅在有主网口交换机配置时才添加网络接口，否则显式禁用
+	if params.SwitchID != 0 {
+		cmdParts = append(cmdParts, D.BuildOVSVirtInstallNetworkArg(params.NicModel))
+	} else {
+		cmdParts = append(cmdParts, "--network none")
+	}
+	cmdParts = append(cmdParts,
 		"--graphics vnc,listen=0.0.0.0",
 		"--video virtio",
 		"--import",
 		"--cpu host-passthrough",
-	}
+	)
 	switch bootType {
 	case "uefi":
 		cmdParts = append(cmdParts, "--boot uefi")
@@ -255,10 +262,10 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 	enableFPR := templateType != "windows" && templateType != "other"
 	vmXML := InjectMemballoonConfig(xmlOutput, enableFPR)
 
-	// 注入 pcie-root-port 控制器（q35 机型热插拔预留，默认 4 个）
+	// 注入 pcie-root-port 控制器（q35 机型热插拔预留，默认 6 个）
 	pciePortCount := params.PCIERootPorts
 	if pciePortCount <= 0 {
-		pciePortCount = 4
+		pciePortCount = 6
 	}
 	vmXML = D.InjectPCIERootPorts(vmXML, pciePortCount)
 

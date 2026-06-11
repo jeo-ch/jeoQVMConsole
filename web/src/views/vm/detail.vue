@@ -59,13 +59,6 @@
                 <code class="hero-ip-value" :class="{ 'ip-unreachable': ipTooltipText }">{{ ipDisplayText }}</code>
               </el-tooltip>
             </span>
-            <span v-if="hasMultipleIPs" class="meta-divider"></span>
-            <span v-if="hasMultipleIPs" class="meta-item hero-ip-label">
-              <el-icon><Connection /></el-icon> 更多
-              <el-tooltip :content="allIPsDisplayText" placement="top" effect="dark">
-                <code class="hero-ip-value" style="color: var(--el-color-success); background: var(--el-color-success-light-9);">{{ allIPsDisplayText }}</code>
-              </el-tooltip>
-            </span>
             <span v-if="publicIPs.length" class="meta-divider"></span>
             <span v-if="publicIPs.length" class="meta-item hero-ip-label">
               <el-icon><Location /></el-icon> 公网
@@ -431,10 +424,16 @@
                     </el-tooltip>
                   </span>
                 </div>
-                <div v-if="hasMultipleIPs" class="info-row">
+                <div v-if="allInterfaceIPs.length > 0" class="info-row">
                   <span class="info-label">全部 IP</span>
-                  <span class="info-value mono ip-highlight" style="color: var(--el-color-success); flex-wrap: wrap; gap: 4px;">
-                    <code v-for="ip in allInterfaceIPs" :key="ip" class="credential-code" style="margin: 2px;">{{ ip }}</code>
+                  <span class="info-value mono" style="display: flex; flex-direction: column; gap: 3px;">
+                    <div v-for="(item, idx) in (showInfoIPs ? allInterfaceIPs : allInterfaceIPs.slice(0, 3))" :key="idx" style="display: flex; align-items: center; gap: 6px;">
+                      <code class="credential-code" style="margin: 0;">{{ item.ip }}</code>
+                      <el-tag v-if="item.source" size="small" :type="ipSourceTagType(item.source)" effect="plain">{{ ipSourceLabel(item.source) }}</el-tag>
+                    </div>
+                    <el-button v-if="allInterfaceIPs.length > 3" link type="primary" size="small" @click="showInfoIPs = !showInfoIPs">
+                      {{ showInfoIPs ? '收起' : `显示全部 (${allInterfaceIPs.length})` }}
+                    </el-button>
                   </span>
                 </div>
                 <div class="info-row">
@@ -515,6 +514,15 @@
                     <span class="info-tag" :class="vmInfo.pae ? 'tag-success' : 'tag-info'">
                       {{ vmInfo.pae ? '已启用' : '已关闭' }}
                     </span>
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">QEMU Guest Agent</span>
+                  <span class="info-value">
+                    <el-tooltip v-if="vmInfo.guest_agent_status?.version" :content="'版本: ' + vmInfo.guest_agent_status.version" placement="top">
+                      <span class="info-tag" :class="guestAgentStatusClass">{{ guestAgentStatusText }}</span>
+                    </el-tooltip>
+                    <span v-else class="info-tag" :class="guestAgentStatusClass">{{ guestAgentStatusText }}</span>
                   </span>
                 </div>
                 <div class="info-row">
@@ -787,9 +795,10 @@ const ipDisplayText = computed(() => {
 })
 // 多网口 IP 列表
 const allInterfaceIPs = ref([])
+const showInfoIPs = ref(false)
 const hasMultipleIPs = computed(() => allInterfaceIPs.value.length > 0)
 const allIPsDisplayText = computed(() => {
-  return allInterfaceIPs.value.join(', ')
+  return allInterfaceIPs.value.map(i => i.ip).join(', ')
 })
 const fetchAllInterfaceIPs = async () => {
   try {
@@ -797,9 +806,14 @@ const fetchAllInterfaceIPs = async () => {
     const ifaces = res.data?.interfaces || []
     const ips = ifaces
       .filter(i => i.ip && i.ip !== '0.0.0.0')
-      .map(i => i.ip)
+      .map(i => ({ ip: i.ip, source: i.ip_source || '' }))
     // 去重
-    allInterfaceIPs.value = [...new Set(ips)]
+    const seen = new Set()
+    allInterfaceIPs.value = ips.filter(item => {
+      if (seen.has(item.ip)) return false
+      seen.add(item.ip)
+      return true
+    })
   } catch {
     allInterfaceIPs.value = []
   }
@@ -810,6 +824,40 @@ const ipTooltipText = computed(() => {
   if (vmInfo.ip_status === 'shut_off') return '虚拟机处于关机状态，无法获取 IP'
   return ''
 })
+
+// Guest Agent 状态
+const guestAgentStatusText = computed(() => {
+  const s = vmInfo.guest_agent_status
+  if (!s) return '未知'
+  if (s.connected) return '已连接'
+  if (s.configured) return '已配置未连接'
+  return '未配置'
+})
+const guestAgentStatusClass = computed(() => {
+  const s = vmInfo.guest_agent_status
+  if (!s) return 'tag-info'
+  if (s.connected) return 'tag-success'
+  if (s.configured) return 'tag-warning'
+  return 'tag-info'
+})
+
+// IP 来源标签
+const ipSourceLabel = (source) => {
+  const map = {
+    guest_agent: 'Guest Agent',
+    arp: 'ARP',
+    ovs_dhcp: 'OVS DHCP',
+    vpc_dhcp: 'VPC DHCP',
+    libvirt_lease: 'libvirt 租约',
+    static: '静态绑定'
+  }
+  return map[source] || source || '-'
+}
+const ipSourceTagType = (source) => {
+  if (source === 'guest_agent') return 'success'
+  if (source === 'static') return 'warning'
+  return 'info'
+}
 const resetPasswordDialogVisible = ref(false)
 const resetPasswordSubmitting = ref(false)
 const resetPasswordFormRef = ref(null)

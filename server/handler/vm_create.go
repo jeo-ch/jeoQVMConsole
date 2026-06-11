@@ -15,43 +15,43 @@ import (
 
 // CreateVmRequest 普通创建虚拟机请求（不通过模板）
 type CreateVmRequest struct {
-	Name            string                          `json:"name" binding:"required"`
-	Remark          string                          `json:"remark"`
-	VCPU            int                             `json:"vcpu" binding:"required"`
-	RAM             int                             `json:"ram" binding:"required"`
-	DiskSize        int                             `json:"disk_size" binding:"required"`
-	DiskFormat      string                          `json:"disk_format"`
-	DiskBus         string                          `json:"disk_bus"` // 磁盘总线: virtio/scsi/sata/ide
-	OSVariant       string                          `json:"os_variant"`
-	ISOPath         string                          `json:"iso_path"`
-	ISOPaths        []string                        `json:"iso_paths"`
-	NicModel        string                          `json:"nic_model"` // 网卡类型: virtio/e1000e/rtl8139
-	Autostart       bool                            `json:"autostart"`
-	Freeze          bool                            `json:"freeze"`
-	APIC            *bool                           `json:"apic"`
-	PAE             *bool                           `json:"pae"`
-	RTCOffset       string                          `json:"rtc_offset"`
-	RTCStartDate    string                          `json:"rtc_startdate"`
-	GuestAgent      *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1         *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	OSType          string                          `json:"os_type"`
-	MachineType     string                          `json:"machine_type"`
-	BootType        string                          `json:"boot_type"`
-	Watchdog        string                          `json:"watchdog"`
-	BootOrder       []string                        `json:"boot_order"`
-	VideoModel      string                          `json:"video_model"`
-	CPUTopologyMode string                          `json:"cpu_topology_mode"`
-	CPULimitPercent int                             `json:"cpu_limit_percent"`
-	CPUAffinity     string                          `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
-	VirtType        string                          `json:"virt_type"`    // 虚拟化方案: kvm/qemu
-	Arch            string                          `json:"arch"`      // 目标架构: x86_64/aarch64/riscv64
+	Name            string                            `json:"name" binding:"required"`
+	Remark          string                            `json:"remark"`
+	VCPU            int                               `json:"vcpu" binding:"required"`
+	RAM             int                               `json:"ram" binding:"required"`
+	DiskSize        int                               `json:"disk_size" binding:"required"`
+	DiskFormat      string                            `json:"disk_format"`
+	DiskBus         string                            `json:"disk_bus"` // 磁盘总线: virtio/scsi/sata/ide
+	OSVariant       string                            `json:"os_variant"`
+	ISOPath         string                            `json:"iso_path"`
+	ISOPaths        []string                          `json:"iso_paths"`
+	NicModel        string                            `json:"nic_model"` // 网卡类型: virtio/e1000e/rtl8139
+	Autostart       bool                              `json:"autostart"`
+	Freeze          bool                              `json:"freeze"`
+	APIC            *bool                             `json:"apic"`
+	PAE             *bool                             `json:"pae"`
+	RTCOffset       string                            `json:"rtc_offset"`
+	RTCStartDate    string                            `json:"rtc_startdate"`
+	GuestAgent      *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1         *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	OSType          string                            `json:"os_type"`
+	MachineType     string                            `json:"machine_type"`
+	BootType        string                            `json:"boot_type"`
+	Watchdog        string                            `json:"watchdog"`
+	BootOrder       []string                          `json:"boot_order"`
+	VideoModel      string                            `json:"video_model"`
+	CPUTopologyMode string                            `json:"cpu_topology_mode"`
+	CPULimitPercent int                               `json:"cpu_limit_percent"`
+	CPUAffinity     string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	VirtType        string                            `json:"virt_type"`    // 虚拟化方案: kvm/qemu
+	Arch            string                            `json:"arch"`         // 目标架构: x86_64/aarch64/riscv64
 	MemoryDynamic   *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID        uint                            `json:"switch_id"`
-	SecurityGroupID uint                            `json:"security_group_id"`
-	ExtraNics       []service.AddVMInterfaceRequest `json:"extra_nics"`
-	StoragePoolID   string                          `json:"storage_pool_id"`
-	SystemDiskIOPS  *service.DiskIOPSTune           `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
-	HostDevices     []service.HostDeviceParam       `json:"host_devices"`      // 硬件直通设备
+	SwitchID        uint                              `json:"switch_id"`
+	SecurityGroupID uint                              `json:"security_group_id"`
+	ExtraNics       []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	StoragePoolID   string                            `json:"storage_pool_id"`
+	SystemDiskIOPS  *service.DiskIOPSTune             `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
+	HostDevices     []service.HostDeviceParam         `json:"host_devices"`     // 硬件直通设备
 	ExtraDisks      []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
@@ -164,16 +164,19 @@ func CreateVm(c *gin.Context) {
 			})
 			return
 		}
-		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
-		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": err.Error(),
-			})
-			return
+		// 仅当用户指定了交换机或有网口配置时才解析 VPC
+		if req.SwitchID != 0 || len(req.ExtraNics) > 0 {
+			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
+			if err != nil {
+				c.JSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": err.Error(),
+				})
+				return
+			}
+			params.SwitchID = switchID
+			params.SecurityGroupID = securityGroupID
 		}
-		params.SwitchID = switchID
-		params.SecurityGroupID = securityGroupID
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeCreate, params, usernameStr)
@@ -237,43 +240,43 @@ func GetISOList(c *gin.Context) {
 
 // ImportDiskByPathRequest 管理员通过绝对路径导入磁盘请求
 type ImportDiskByPathRequest struct {
-	Name             string                           `json:"name" binding:"required"`
-	Remark           string                           `json:"remark"`
-	DiskPath         string                           `json:"disk_path"`
-	DiskFile         string                           `json:"disk_file"`
-	DiskSourceType   string                           `json:"disk_source_type"`
-	StoragePoolID    string                           `json:"storage_pool_id"`
-	VCPU             int                              `json:"vcpu" binding:"required"`
-	RAM              int                              `json:"ram" binding:"required"`
-	CopyDisk         bool                             `json:"copy_disk"`
-	InitType         string                           `json:"init_type"`
-	Hostname         string                           `json:"hostname"`
-	User             string                           `json:"user"`
-	Password         string                           `json:"password"`
-	Autostart        bool                             `json:"autostart"`
-	Freeze           bool                             `json:"freeze"`
-	APIC             *bool                            `json:"apic"`
-	PAE              *bool                            `json:"pae"`
-	RTCOffset        string                           `json:"rtc_offset"`
-	RTCStartDate     string                           `json:"rtc_startdate"`
-	GuestAgent       *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1          *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	BootType         string                           `json:"boot_type"`
-	MachineType      string                           `json:"machine_type"`
-	NicModel         string                           `json:"nic_model"`
-	VideoModel       string                           `json:"video_model"`
-	CPUTopologyMode  string                           `json:"cpu_topology_mode"`
-	CPULimitPercent  int                              `json:"cpu_limit_percent"`
-	CPUAffinity      string                           `json:"cpu_affinity"`    // CPU 亲和性，如 "0,2,4"
-	TemplateRootPass string                           `json:"template_root_pass"`
-	TemplateUser     string                           `json:"template_user"`
-	MemoryDynamic    *vm_memory.VMMemoryDynamicRequest  `json:"memory_dynamic"`
-	SwitchID         uint                             `json:"switch_id"`
-	SecurityGroupID  uint                             `json:"security_group_id"`
-	ExtraNics        []service.AddVMInterfaceRequest  `json:"extra_nics"`
-	ExtraImportDisks []vmimport.ExtraImportDiskEntry    `json:"extra_import_disks"`
-	SystemDiskIOPS   *service.DiskIOPSTune            `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
-	StartAfterImport *bool                            `json:"start_after_import"` // 导入完成后是否开启虚拟机，不传默认 true
+	Name             string                            `json:"name" binding:"required"`
+	Remark           string                            `json:"remark"`
+	DiskPath         string                            `json:"disk_path"`
+	DiskFile         string                            `json:"disk_file"`
+	DiskSourceType   string                            `json:"disk_source_type"`
+	StoragePoolID    string                            `json:"storage_pool_id"`
+	VCPU             int                               `json:"vcpu" binding:"required"`
+	RAM              int                               `json:"ram" binding:"required"`
+	CopyDisk         bool                              `json:"copy_disk"`
+	InitType         string                            `json:"init_type"`
+	Hostname         string                            `json:"hostname"`
+	User             string                            `json:"user"`
+	Password         string                            `json:"password"`
+	Autostart        bool                              `json:"autostart"`
+	Freeze           bool                              `json:"freeze"`
+	APIC             *bool                             `json:"apic"`
+	PAE              *bool                             `json:"pae"`
+	RTCOffset        string                            `json:"rtc_offset"`
+	RTCStartDate     string                            `json:"rtc_startdate"`
+	GuestAgent       *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1          *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	BootType         string                            `json:"boot_type"`
+	MachineType      string                            `json:"machine_type"`
+	NicModel         string                            `json:"nic_model"`
+	VideoModel       string                            `json:"video_model"`
+	CPUTopologyMode  string                            `json:"cpu_topology_mode"`
+	CPULimitPercent  int                               `json:"cpu_limit_percent"`
+	CPUAffinity      string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	TemplateRootPass string                            `json:"template_root_pass"`
+	TemplateUser     string                            `json:"template_user"`
+	MemoryDynamic    *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
+	SwitchID         uint                              `json:"switch_id"`
+	SecurityGroupID  uint                              `json:"security_group_id"`
+	ExtraNics        []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	ExtraImportDisks []vmimport.ExtraImportDiskEntry   `json:"extra_import_disks"`
+	SystemDiskIOPS   *service.DiskIOPSTune             `json:"system_disk_iops"`   // 系统盘 IOPS 限制（仅管理员）
+	StartAfterImport *bool                             `json:"start_after_import"` // 导入完成后是否开启虚拟机，不传默认 true
 }
 
 // AdminImportDisk 管理员通过绝对路径导入磁盘创建虚拟机（异步任务）

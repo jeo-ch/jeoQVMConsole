@@ -432,35 +432,36 @@ func UnmountStorageFromVM(c *gin.Context) {
 
 // SelfCreateVmRequest 用户自助创建VM请求
 type SelfCreateVmRequest struct {
-	Name            string                          `json:"name" binding:"required"`
-	Remark          string                          `json:"remark"`
-	VCPU            int                             `json:"vcpu" binding:"required"`
-	RAM             int                             `json:"ram" binding:"required"`
-	DiskSize        int                             `json:"disk_size" binding:"required"`
-	DiskFormat      string                          `json:"disk_format"`
-	DiskBus         string                          `json:"disk_bus"`
-	OSVariant       string                          `json:"os_variant"`
-	ISOPath         string                          `json:"iso_path"`
-	ISOPaths        []string                        `json:"iso_paths"`
-	NicModel        string                          `json:"nic_model"`
-	Autostart       bool                            `json:"autostart"`
-	Freeze          bool                            `json:"freeze"`
-	APIC            *bool                           `json:"apic"`
-	PAE             *bool                           `json:"pae"`
-	RTCOffset       string                          `json:"rtc_offset"`
-	RTCStartDate    string                          `json:"rtc_startdate"`
-	GuestAgent      *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1         *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	OSType          string                          `json:"os_type"`
-	MachineType     string                          `json:"machine_type"`
-	BootType        string                          `json:"boot_type"`
-	BootOrder       []string                        `json:"boot_order"`
-	VideoModel      string                          `json:"video_model"`
-	CPUTopologyMode string                          `json:"cpu_topology_mode"`
+	Name            string                            `json:"name" binding:"required"`
+	Remark          string                            `json:"remark"`
+	VCPU            int                               `json:"vcpu" binding:"required"`
+	RAM             int                               `json:"ram" binding:"required"`
+	DiskSize        int                               `json:"disk_size" binding:"required"`
+	DiskFormat      string                            `json:"disk_format"`
+	DiskBus         string                            `json:"disk_bus"`
+	OSVariant       string                            `json:"os_variant"`
+	ISOPath         string                            `json:"iso_path"`
+	ISOPaths        []string                          `json:"iso_paths"`
+	NicModel        string                            `json:"nic_model"`
+	Autostart       bool                              `json:"autostart"`
+	Freeze          bool                              `json:"freeze"`
+	APIC            *bool                             `json:"apic"`
+	PAE             *bool                             `json:"pae"`
+	RTCOffset       string                            `json:"rtc_offset"`
+	RTCStartDate    string                            `json:"rtc_startdate"`
+	GuestAgent      *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1         *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	OSType          string                            `json:"os_type"`
+	MachineType     string                            `json:"machine_type"`
+	BootType        string                            `json:"boot_type"`
+	BootOrder       []string                          `json:"boot_order"`
+	VideoModel      string                            `json:"video_model"`
+	CPUTopologyMode string                            `json:"cpu_topology_mode"`
 	MemoryDynamic   *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID        uint                            `json:"switch_id"`
-	SecurityGroupID uint                            `json:"security_group_id"`
-	StoragePoolID   string                          `json:"storage_pool_id"`
+	SwitchID        uint                              `json:"switch_id"`
+	SecurityGroupID uint                              `json:"security_group_id"`
+	ExtraNics       []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	StoragePoolID   string                            `json:"storage_pool_id"`
 	ExtraDisks      []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
@@ -534,13 +535,18 @@ func SelfCreateVm(c *gin.Context) {
 		})
 		return
 	}
-	switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": err.Error(),
-		})
-		return
+	// 仅当用户指定了交换机时才解析 VPC
+	if req.SwitchID != 0 {
+		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{
+				"code":    403,
+				"message": err.Error(),
+			})
+			return
+		}
+		req.SwitchID = switchID
+		req.SecurityGroupID = securityGroupID
 	}
 
 	params := &service.CreateVMParams{
@@ -570,10 +576,11 @@ func SelfCreateVm(c *gin.Context) {
 		VideoModel:      req.VideoModel,
 		CPUTopologyMode: req.CPUTopologyMode,
 		VirtType:        "kvm",
-		SwitchID:        switchID,
-		SecurityGroupID: securityGroupID,
+		SwitchID:        req.SwitchID,
+		SecurityGroupID: req.SecurityGroupID,
 		StoragePoolID:   req.StoragePoolID,
 		IsAdmin:         false,
+		ExtraNics:       req.ExtraNics,
 		MemoryDynamic: sanitizeUserMemoryDynamicRequest(
 			req.MemoryDynamic,
 			req.RAM,

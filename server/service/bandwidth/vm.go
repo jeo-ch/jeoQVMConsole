@@ -17,6 +17,11 @@ import (
 // ReapplyConfiguredVMBandwidth 按持久化配置重刷运行态带宽规则。
 // 这一步会在 VM 重新获得新的 vnet/ofport 后清理旧流表，再按当前端口重新下发。
 func ReapplyConfiguredVMBandwidth(vmName string) error {
+	// VM 无网口则无需刷新带宽
+	mac := ip_resolver.GetFirstVMMAC(vmName)
+	if mac == "" {
+		return nil
+	}
 	config, err := getVMBandwidthConfigRaw(vmName)
 	if err != nil {
 		return err

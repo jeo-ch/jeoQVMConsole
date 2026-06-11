@@ -18,10 +18,10 @@ type VMGuestAgentConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
-// NormalizeVMGuestAgentConfig 规范化 Guest Agent 配置
+// NormalizeVMGuestAgentConfig 规范化 Guest Agent 配置，nil 或未指定时默认启用
 func NormalizeVMGuestAgentConfig(cfg *VMGuestAgentConfig) *VMGuestAgentConfig {
 	if cfg == nil {
-		return &VMGuestAgentConfig{}
+		return &VMGuestAgentConfig{Enabled: true}
 	}
 	return &VMGuestAgentConfig{
 		Enabled: cfg.Enabled,

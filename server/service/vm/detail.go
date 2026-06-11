@@ -10,6 +10,7 @@ import (
 	"github.com/digitalocean/go-libvirt"
 
 	"kvm_console/logger"
+	"kvm_console/service/guest_agent"
 	"kvm_console/service/ip_resolver"
 	"kvm_console/service/libvirt_rpc"
 	"kvm_console/service/vm/memory"
@@ -118,6 +119,7 @@ func GetVM(name string) (*VmDetail, error) {
 	vm.RTCOffset = D.ParseRTCOffsetFromDomainXML(xmlStr)
 	vm.RTCStartDate = D.ParseRTCStartDateFromDomainXML(xmlStr)
 	vm.GuestAgent = vm_xml.ParseVMGuestAgentConfigFromDomainXML(xmlStr)
+	vm.GuestAgentStatus = guest_agent.CheckVMGuestAgentStatus(name)
 	vm.SMBIOS1 = vm_xml.ParseSMBIOS1ConfigFromDomainXML(xmlStr)
 	memInfo := memory.GetVMMemoryDynamicInfo(name, xmlStr, vm.Status)
 	applyMemoryDynamicInfoToVMInfo(&vm.VmInfo, memInfo)

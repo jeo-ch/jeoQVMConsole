@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"kvm_console/model"
+	"kvm_console/service/guest_agent"
 	"kvm_console/utils"
 )
 
@@ -52,8 +53,11 @@ func GetVMIP(name string, isRunning bool) string {
 				return ip
 			}
 			if isRunning {
-				if ip := getVMIPFromDomifaddrSource(name, "agent", ipRe, sw.CIDR, false); ip != "" {
-					return ip
+				// 优先使用 Guest Agent
+				if mac := GetFirstVMMAC(name); mac != "" {
+					if ip, ok := guest_agent.GetVMIPByMACFromAgent(name, mac); ok && IPInCIDR(ip, sw.CIDR) {
+						return ip
+					}
 				}
 				if ip := getVMIPFromDomifaddrSource(name, "arp", ipRe, sw.CIDR, true); ip != "" {
 					return ip
@@ -87,19 +91,15 @@ func GetVMIP(name string, isRunning bool) string {
 	}
 
 	if isRunning {
-		// 方式1: Guest Agent（最准确，但需要虚拟机安装 qemu-guest-agent）
-		result := utils.ExecCommandQuiet("virsh", "domifaddr", name, "--source", "agent")
-		if result.Error == nil {
-			allMatches := ipRe.FindAllStringSubmatch(result.Stdout, -1)
-			for _, m := range allMatches {
-				if m[1] != "127.0.0.1" {
-					return m[1]
-				}
+		// 方式1: QEMU Guest Agent（最准确，需虚拟机安装 qemu-guest-agent）
+		if mac := GetFirstVMMAC(name); mac != "" {
+			if ip, ok := guest_agent.GetVMIPByMACFromAgent(name, mac); ok {
+				return ip
 			}
 		}
 
 		// 方式2: ARP 表（反映当前实际网络通信状态，比 DHCP 租约更可靠）
-		result = utils.ExecCommandQuiet("virsh", "domifaddr", name, "--source", "arp")
+		result := utils.ExecCommandQuiet("virsh", "domifaddr", name, "--source", "arp")
 		if result.Error == nil {
 			allMatches := ipRe.FindAllStringSubmatch(result.Stdout, -1)
 			if len(allMatches) == 1 {

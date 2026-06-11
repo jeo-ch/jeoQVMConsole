@@ -1353,14 +1353,14 @@
             <div class="step-pane-icon network"><FormIcons icon="step-network" :size="22" /></div>
             <div class="step-pane-info">
               <div class="step-pane-title">网络设置</div>
-              <div class="step-pane-desc">配置网卡类型和 VPC 安全组</div>
+              <div class="step-pane-desc">配置网卡类型和网口</div>
             </div>
           </div>
           <div class="step-pane-body">
             <div class="form-section-card">
               <div class="form-section-card-header">
                 <el-icon><Connection /></el-icon>
-                <span>网络接口</span>
+                <span>默认网卡型号</span>
               </div>
               <div class="form-section-card-body">
                 <el-row :gutter="20">
@@ -1371,112 +1371,18 @@
                         <el-option label="e1000e (Intel)" value="e1000e" />
                         <el-option label="rtl8139" value="rtl8139" />
                       </el-select>
+                      <div class="form-tip"><el-icon><InfoFilled /></el-icon>新建网口时将默认使用此网卡型号</div>
                     </el-form-item>
                   </el-col>
                 </el-row>
               </div>
             </div>
 
-            <div class="form-section-card">
-              <div class="form-section-card-header">
-                <el-icon><Lock /></el-icon>
-                <span>VPC 安全</span>
-              </div>
-              <div class="form-section-card-body">
-                <el-alert
-                  v-if="registrationMode"
-                  type="info"
-                  :closable="false"
-                  show-icon
-                  style="margin-bottom: 14px;"
-                  :title="`将自动接入该轻量云用户的专用 VPC：${registrationContext.dedicated_vpc_label || '管理员已配置'}`"
-                />
-                <el-row v-if="!registrationMode" :gutter="20">
-                  <el-col :span="12">
-                    <el-form-item label="VPC 交换机" prop="switch_id">
-                      <el-select v-model="form.switch_id" placeholder="选择交换机" style="width: 100%;" filterable @focus="loadVPCOptions">
-                        <el-option
-                          v-for="item in vpcSwitches"
-                          :key="item.id"
-                          :label="item.bridge_mode === 'bridge' ? `${item.name}（桥接直通${item.bridge_vlan_id > 0 ? ' VLAN ' + item.bridge_vlan_id : ''}）` : `${item.name} (${item.cidr})`"
-                          :value="item.id"
-                        >
-                          <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>{{ item.name }}</span>
-                            <el-tag size="small" :type="item.bridge_mode === 'bridge' ? 'warning' : 'info'">{{ item.bridge_mode === 'bridge' ? `${item.bridge_name || '桥接'}${item.bridge_vlan_id > 0 ? ' / VLAN ' + item.bridge_vlan_id : ''}` : item.cidr }}</el-tag>
-                          </div>
-                        </el-option>
-                      </el-select>
-                      <div v-if="selectedVPCSwitch?.bridge_mode === 'bridge'" class="form-tip">
-                        <el-icon><InfoFilled /></el-icon>桥接直通由上级路由器分配 IP，不启用内部 DHCP、NAT、安全组和端口转发
-                      </div>
-                      <div v-if="!isAdmin && vpcSwitches.length === 0" class="form-tip">
-                        <el-icon><InfoFilled /></el-icon>请先在左侧 VPC 网络中创建交换机
-                      </div>
-                    </el-form-item>
-                  </el-col>
-                  <el-col v-if="selectedVPCSwitch?.bridge_mode !== 'bridge'" :span="12">
-                    <el-form-item label="安全组" prop="security_group_id">
-                      <el-select v-model="form.security_group_id" placeholder="选择安全组" style="width: 100%;" filterable @focus="loadVPCOptions">
-                        <el-option
-                          v-for="item in vpcSecurityGroups"
-                          :key="item.id"
-                          :label="item.is_default ? `${item.name}（默认）` : item.name"
-                          :value="item.id"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-              </div>
-            </div>
-
-            <div v-if="registrationMode" class="form-section-card">
-              <div class="form-section-card-header">
-                <el-icon><Connection /></el-icon>
-                <span>轻量云网络配额</span>
-              </div>
-              <div class="form-section-card-body">
-                <el-row :gutter="20">
-                  <el-col :span="12">
-                    <el-form-item label="下行月流量(GB)">
-                      <el-input-number v-model="form.traffic_down_gb" :min="0" :precision="2" style="width: 100%;" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12">
-                    <el-form-item label="上行月流量(GB)">
-                      <el-input-number v-model="form.traffic_up_gb" :min="0" :precision="2" style="width: 100%;" />
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-                <el-row :gutter="20">
-                  <el-col :span="12">
-                    <el-form-item label="下行带宽(Mbps)">
-                      <el-input-number v-model="form.bandwidth_down_mbps" :min="0" style="width: 100%;" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12">
-                    <el-form-item label="上行带宽(Mbps)">
-                      <el-input-number v-model="form.bandwidth_up_mbps" :min="0" style="width: 100%;" />
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-                <el-form-item label="端口转发上限">
-                  <el-input-number v-model="form.max_port_forwards" :min="0" style="width: 100%;" />
-                  <div class="form-tip"><el-icon><InfoFilled /></el-icon>设为 0 表示不限制；默认建议 10 条。</div>
-                </el-form-item>
-                <el-form-item label="运行时长配额(小时)">
-                  <el-input-number v-model="form.max_runtime_hours" :min="0" style="width: 100%;" />
-                  <div class="form-tip"><el-icon><InfoFilled /></el-icon>设为 0 表示不限制；到时系统会自动关机并提前邮件提醒。</div>
-                </el-form-item>
-              </div>
-            </div>
-
-            <!-- 多网口配置（仅管理员，创建/批量模式） -->
-            <div v-if="isAdmin && !registrationMode" class="form-section-card">
+            <!-- 网口配置 -->
+            <div v-if="!registrationMode" class="form-section-card">
               <div class="form-section-card-header">
                 <el-icon><Plus /></el-icon>
-                <span>额外网口（可选）</span>
+                <span>网口</span>
                 <el-button size="small" type="primary" plain style="margin-left: auto;" @click="addExtraNic">
                   <el-icon><Plus /></el-icon> 添加网口
                 </el-button>
@@ -1488,7 +1394,7 @@
                   class="extra-nic-row"
                 >
                   <div class="extra-nic-header">
-                    <el-tag size="small" type="info">网口 #{{ index + 2 }}</el-tag>
+                    <el-tag size="small" type="info">网口 #{{ index + 1 }}</el-tag>
                     <el-button size="small" type="danger" text @click="removeExtraNic(index)">
                       <el-icon><Delete /></el-icon>
                     </el-button>
@@ -1531,7 +1437,7 @@
                 </div>
               </div>
               <div v-else class="form-section-card-body">
-                <el-empty description="暂无额外网口，点击上方「添加网口」为虚拟机配置多网卡" :image-size="48" />
+                <el-empty description="暂无网口，点击上方「添加网口」为虚拟机配置网络。未添加网口时虚拟机将无物理网卡。" :image-size="48" />
               </div>
             </div>
           </div>
@@ -2655,7 +2561,7 @@ const digitCharset = '23456789'
 const symbolCharset = '!@#$%^&*_-+=?'
 const fnosDeviceIdPattern = /^[0-9a-fA-F]{32}([0-9a-fA-F]{8})?$/
 const createEmptyGuestAgentConfig = () => ({
-  enabled: false,
+  enabled: true,
 })
 const createEmptySMBIOS1Config = () => ({
   base64: false,
@@ -3294,17 +3200,7 @@ const nextStep = async () => {
   }
 
   if (currentStepName === 'network') {
-    let fieldsToValidate = []
-    if (!isAdmin.value) {
-      fieldsToValidate = ['switch_id', 'security_group_id']
-    }
-    if (fieldsToValidate.length > 0) {
-      try {
-        await formRef.value.validateField(fieldsToValidate)
-      } catch (err) {
-        isValid = false
-      }
-    }
+    // 网口已改为可选，无必填验证
   }
 
   if (isValid && createStep.value < maxStep.value) {
@@ -3348,15 +3244,32 @@ const switchOptionLabelNic = (item) => {
 }
 const getExtraNicSwitch = (nic) => vpcSwitches.value.find(item => item.id === nic.switch_id) || null
 
-// 构建额外网口提交数据
+// 构建网口提交数据（全部网口），返回 { primary, extraNics }
+const buildAllNicsPayload = () => {
+  const validNics = extraNics.value.filter(n => n.switch_id)
+  if (validNics.length === 0) {
+    return {
+      primarySwitchId: 0,
+      primarySecurityGroupId: 0,
+      extraNics: []
+    }
+  }
+  const first = validNics[0]
+  const rest = validNics.slice(1).map(n => ({
+    switch_id: n.switch_id,
+    security_group_id: n.security_group_id || 0,
+    nic_model: n.nic_model || 'virtio'
+  }))
+  return {
+    primarySwitchId: first.switch_id,
+    primarySecurityGroupId: first.security_group_id || 0,
+    extraNics: rest
+  }
+}
+
+// 构建额外网口提交数据（兼容旧接口）
 const buildExtraNicsPayload = () => {
-  return extraNics.value
-    .filter(n => n.switch_id)
-    .map(n => ({
-      switch_id: n.switch_id,
-      security_group_id: n.security_group_id || 0,
-      nic_model: n.nic_model || 'virtio'
-    }))
+  return buildAllNicsPayload().extraNics
 }
 const storageTargets = ref([])
 const storageTargetsLoading = ref(false)
@@ -4698,9 +4611,8 @@ const onClosed = () => {
 
 const submitForm = async () => {
   if (!formRef.value) return
-  if (!isEdit.value && !isAdmin.value && (!form.switch_id || !form.security_group_id)) {
-    await loadVPCOptions()
-  }
+  // 网口配置：第一个网口作为主网口，其余为额外网口
+  const nicsPayload = buildAllNicsPayload()
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
@@ -4790,8 +4702,8 @@ const submitForm = async () => {
               disk_source_type: 'path',
               storage_pool_id: form.storage_pool_id,
               vcpu: form.vcpu, ram: form.ram,
-              switch_id: form.switch_id || 0,
-              security_group_id: selectedVPCSwitch.value?.bridge_mode === 'bridge' ? 0 : (form.security_group_id || 0),
+              switch_id: nicsPayload.primarySwitchId,
+              security_group_id: nicsPayload.primarySecurityGroupId,
               copy_disk: form.copy_disk, init_type: form.init_type,
               hostname: form.hostname || form.name,
               user: form.import_user, password: form.import_password,
@@ -4805,7 +4717,7 @@ const submitForm = async () => {
               nic_model: form.nic_model, video_model: form.video_model,
               cpu_topology_mode: form.cpu_topology_mode,
               first_boot_reboot_mode: form.first_boot_reboot_mode,
-              extra_nics: buildExtraNicsPayload(),
+              extra_nics: nicsPayload.extraNics,
               extra_import_disks: form.extra_import_disks.filter(d => d.disk_path || d.disk_file).map(d => ({
                 disk_path: d.disk_path,
                 disk_file: d.disk_file,
@@ -4839,8 +4751,8 @@ const submitForm = async () => {
             vcpu: form.vcpu,
             max_vcpu: cpuHotplugMaxVCPU.value,
             ram: form.ram,
-            switch_id: form.switch_id || 0,
-            security_group_id: selectedVPCSwitch.value?.bridge_mode === 'bridge' ? 0 : (form.security_group_id || 0),
+            switch_id: nicsPayload.primarySwitchId,
+            security_group_id: nicsPayload.primarySecurityGroupId,
             copy_disk: form.copy_disk,
             init_type: form.init_type,
             hostname: form.hostname || form.name,
@@ -4863,7 +4775,7 @@ const submitForm = async () => {
             video_model: form.video_model,
             cpu_topology_mode: form.cpu_topology_mode,
             first_boot_reboot_mode: form.first_boot_reboot_mode,
-            extra_nics: buildExtraNicsPayload(),
+            extra_nics: nicsPayload.extraNics,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {
@@ -4889,8 +4801,8 @@ const submitForm = async () => {
             max_vcpu: cpuHotplugMaxVCPU.value,
             ram: form.ram,
             disk_size: form.disk_size,
-            switch_id: form.switch_id || 0,
-            security_group_id: selectedVPCSwitch.value?.bridge_mode === 'bridge' ? 0 : (form.security_group_id || 0),
+            switch_id: nicsPayload.primarySwitchId,
+            security_group_id: nicsPayload.primarySecurityGroupId,
             storage_pool_id: form.storage_pool_id,
             autostart: form.autostart,
             freeze: form.freeze,
@@ -4906,7 +4818,7 @@ const submitForm = async () => {
             video_model: form.video_model,
             cpu_topology_mode: form.cpu_topology_mode,
             first_boot_reboot_mode: form.first_boot_reboot_mode,
-            extra_nics: buildExtraNicsPayload(),
+            extra_nics: nicsPayload.extraNics,
             extra_disks: form.extra_disks.filter(d => d.size > 0).map(d => ({
               size: d.size,
               format: d.format,
@@ -4969,9 +4881,9 @@ const submitForm = async () => {
               storage_pool_id: form.storage_pool_id,
               cpu_topology_mode: form.cpu_topology_mode,
               first_boot_reboot_mode: form.first_boot_reboot_mode,
-              switch_id: form.switch_id || 0,
-              security_group_id: form.security_group_id || 0,
-              extra_nics: buildExtraNicsPayload(),
+              switch_id: nicsPayload.primarySwitchId,
+              security_group_id: nicsPayload.primarySecurityGroupId,
+              extra_nics: nicsPayload.extraNics,
             }
             const cpuLimitPercent = buildCPULimitPercentPayload()
             if (cpuLimitPercent !== undefined) { batchPayload.cpu_limit_percent = cpuLimitPercent }
@@ -4997,8 +4909,8 @@ const submitForm = async () => {
             hostname: form.hostname,
             user: isWindowsTemplate.value ? windowsTemplateUsername : form.import_user.trim(),
             password: form.import_password,
-            switch_id: form.switch_id || 0,
-            security_group_id: selectedVPCSwitch.value?.bridge_mode === 'bridge' ? 0 : (form.security_group_id || 0),
+            switch_id: nicsPayload.primarySwitchId,
+            security_group_id: nicsPayload.primarySecurityGroupId,
             storage_pool_id: form.storage_pool_id,
             autostart: form.autostart,
             freeze: form.freeze,
@@ -5019,7 +4931,7 @@ const submitForm = async () => {
             video_model: form.video_model,
             cpu_topology_mode: form.cpu_topology_mode,
             first_boot_reboot_mode: form.first_boot_reboot_mode,
-            extra_nics: buildExtraNicsPayload(),
+            extra_nics: nicsPayload.extraNics,
             preserve_fnos_device_id: shouldPreserveFnOSDeviceID.value,
             fnos_device_id: hasCustomFnOSDeviceID.value ? normalizedFnOSDeviceID.value : '',
             extra_disks: form.extra_disks.filter(d => d.size > 0).map(d => ({
@@ -5109,8 +5021,8 @@ const submitForm = async () => {
             os_variant: form.os_variant,
             iso_path: form.iso_path,
             iso_paths: form.iso_paths.filter(Boolean),
-            switch_id: form.switch_id || 0,
-            security_group_id: selectedVPCSwitch.value?.bridge_mode === 'bridge' ? 0 : (form.security_group_id || 0),
+            switch_id: nicsPayload.primarySwitchId,
+            security_group_id: nicsPayload.primarySecurityGroupId,
             storage_pool_id: form.storage_pool_id,
             nic_model: form.nic_model,
             autostart: form.autostart,
@@ -5141,7 +5053,7 @@ const submitForm = async () => {
               iops_write: d.iops_write || 0,
             })),
             host_devices: form.host_devices,
-            extra_nics: buildExtraNicsPayload(),
+            extra_nics: nicsPayload.extraNics,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {

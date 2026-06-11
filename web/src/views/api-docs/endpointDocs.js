@@ -192,7 +192,7 @@ export const endpointGroups = [
     endpoints: [
       ep('GET', '/vm/list', '获取虚拟机列表', { query: ['keyword', 'status', 'owner 等筛选字段'], notes: [vmAccess] }),
       ep('GET', '/vm/sse', '虚拟机列表 SSE 推送', { query: ['token'], response: 'text/event-stream，推送 VM 列表变化。', notes: ['浏览器 EventSource 通常使用 token 查询参数；外部客户端可使用请求头。'] }),
-      ep('GET', '/vm/:name', '获取虚拟机详情', { pathParams: ['name'], notes: [vmAccess] }),
+      ep('GET', '/vm/:name', '获取虚拟机详情', { pathParams: ['name'], notes: [vmAccess, 'guest_agent_status: QEMU Guest Agent 状态（configured/connected/version）'] }),
       ep('GET', '/vm/:name/xml', '读取虚拟机持久化 XML', { pathParams: ['name'], response: 'data: xml 字符串。', notes: [admin, elastic, vmAccess] }),
       ep('GET', '/vm/:name/ip', '获取虚拟机 IP', { pathParams: ['name'], notes: [vmAccess] }),
       ep('GET', '/vm/:name/sse', '虚拟机详情 SSE 推送', { pathParams: ['name'], query: ['token'], response: 'text/event-stream，推送 VM 详情。', notes: [vmAccess] }),
@@ -205,7 +205,7 @@ export const endpointGroups = [
       ep('POST', '/vm/:name/schedules', '创建虚拟机定时任务', { pathParams: ['name'], body: scheduleBody, notes: [elastic, vmAccess], highRisk: '定时删除 VM 任务需要二次验证' }),
       ep('PUT', '/vm/:name/schedules/:id', '更新虚拟机定时任务', { pathParams: ['name', 'id'], body: scheduleBody, notes: [elastic, vmAccess], highRisk: '启用/修改定时删除 VM 任务需要二次验证' }),
       ep('DELETE', '/vm/:name/schedules/:id', '删除虚拟机定时任务', { pathParams: ['name', 'id'], notes: [elastic, vmAccess] }),
-      ep('GET', '/vm/:name/network/status', '读取 VM OVS 网络运行状态', { pathParams: ['name'], notes: [vmAccess] }),
+      ep('GET', '/vm/:name/network/status', '读取 VM OVS 网络运行状态', { pathParams: ['name'], notes: [vmAccess, '每个接口含 ip / ip_source，优先 QEMU Guest Agent'] }),
       ep('GET', '/vm/:name/network/diagnostics', '读取 VM 网络诊断信息', { pathParams: ['name'], notes: [admin, vmAccess] }),
       ep('POST', '/vm/:name/network/capture', '启动 VM 网络抓包任务', { pathParams: ['name'], body: 'JSON: interface, seconds, max_mb, max_packets, filter', notes: [admin, vmAccess], highRisk: 'network_capture' }),
       ep('GET', '/vm/:name/vpc', '读取 VM VPC 绑定', { pathParams: ['name'], notes: [vmAccess] }),

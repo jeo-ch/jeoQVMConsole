@@ -13,6 +13,7 @@ import (
 
 	bwpkg "kvm_console/service/bandwidth"
 	fwpkg "kvm_console/service/firewall"
+	"kvm_console/service/guest_agent"
 	"kvm_console/utils"
 )
 
@@ -524,24 +525,31 @@ func readVMNetworkXML(vmName string) []ovsInterfaceXML {
 func resolveVMIPByMAC(vmName, mac string, running bool) (string, string) {
 	mac = NormalizeMAC(mac)
 	if running {
+		// 方式1: QEMU Guest Agent（最准确，需虚拟机安装 qemu-guest-agent）
+		if ip, ok := guest_agent.GetVMIPByMACFromAgent(vmName, mac); ok {
+			return ip, "guest_agent"
+		}
+		// 方式2: OVS 静态绑定（用户显式配置，优先级高于动态分配）
 		if ip := GetOVSStaticIPByMAC(mac); ip != "" {
 			return ip, "static"
 		}
+		// 方式3: OVS DHCP 租约
 		if ip := GetOVSLeaseIPByMAC(mac); ip != "" {
 			return ip, "ovs_dhcp"
 		}
+		// 方式4: ARP 表（domifaddr arp）
 		if ip, ok := virshDomifaddrIPByMAC(vmName, "arp", mac); ok {
 			return ip, "arp"
 		}
+		// 方式5: 内核邻居表
 		if ip, ok := ipNeighIPByMAC(mac); ok {
 			return ip, "arp"
 		}
+		// 方式6: VPC DHCP
 		if ip := GetVPCLeaseIPForVMByMAC(vmName, mac); ip != "" {
 			return ip, "vpc_dhcp"
 		}
-		if ip, ok := virshDomifaddrIPByMAC(vmName, "agent", mac); ok {
-			return ip, "guest_agent"
-		}
+		// 方式7: libvirt 租约（domifaddr lease）
 		if ip, ok := virshDomifaddrIPByMAC(vmName, "lease", mac); ok {
 			return ip, "libvirt_lease"
 		}

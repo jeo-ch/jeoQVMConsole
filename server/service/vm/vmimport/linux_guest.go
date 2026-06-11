@@ -23,13 +23,20 @@ func importVMLinuxDefine(params *ImportVMParams, destDiskPath, format string, ra
 		vcpuArg = fmt.Sprintf("--vcpus %d,maxvcpus=%d", params.VCPU, params.MaxVCPU)
 	}
 
+	// 网络：仅在有主网口交换机配置时才添加网络接口，否则显式禁用
+	var networkArg string
+	if params.SwitchID != 0 {
+		networkArg = service.BuildOVSVirtInstallNetworkArg(params.NicModel) + " "
+	} else {
+		networkArg = "--network none "
+	}
 	installCmd := fmt.Sprintf(
 		"virt-install --name '%s' --ram %d %s "+
 			"--machine %s "+
 			bootOpt+
 			"--disk '%s,format=%s,bus=virtio,discard=unmap,detect_zeroes=unmap' "+
 			"--osinfo detect=on,require=off "+
-			service.BuildOVSVirtInstallNetworkArg(params.NicModel)+" "+
+			networkArg+
 			"--graphics vnc,listen=0.0.0.0 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --print-xml",
@@ -141,13 +148,20 @@ func importDiskByPathLinuxDefine(params *ImportDiskByPathParams, destDiskPath, f
 		vcpuArg = fmt.Sprintf("--vcpus %d,maxvcpus=%d", params.VCPU, params.MaxVCPU)
 	}
 
+	// 网络：仅在有主网口交换机配置时才添加网络接口，否则显式禁用
+	var networkArg string
+	if params.SwitchID != 0 {
+		networkArg = service.BuildOVSVirtInstallNetworkArg(params.NicModel) + " "
+	} else {
+		networkArg = "--network none "
+	}
 	installCmd := fmt.Sprintf(
 		"virt-install --name '%s' --ram %d %s "+
 			"--machine %s "+
 			bootOpt+
 			"--disk '%s,format=%s,bus=virtio,discard=unmap,detect_zeroes=unmap' "+
 			"--osinfo detect=on,require=off "+
-			service.BuildOVSVirtInstallNetworkArg(params.NicModel)+" "+
+			networkArg+
 			"--graphics vnc,listen=0.0.0.0 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --virt-type kvm --print-xml",

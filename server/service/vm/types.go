@@ -3,8 +3,9 @@ package vm
 import (
 	"encoding/xml"
 
-	bw "kvm_console/service/bandwidth"
 	"kvm_console/model"
+	bw "kvm_console/service/bandwidth"
+	"kvm_console/service/guest_agent"
 	"kvm_console/service/vm_xml"
 )
 
@@ -75,31 +76,32 @@ type BootDevice struct {
 // VmDetail 虚拟机详细信息
 type VmDetail struct {
 	VmInfo
-	DiskPath               string                    `json:"disk_path"`    // 磁盘路径
-	DiskHealthy            *bool                     `json:"disk_healthy"` // 磁盘完整性标记: nil=未检查, true=正常, false=磁盘文件缺失
-	UUID                   string                    `json:"uuid"`         // 虚拟机 UUID
-	VNCPort                string                    `json:"vnc_port"`     // VNC 端口
-	Snapshots              []string                  `json:"snapshots"`    // 快照列表
-	OSType                 string                    `json:"os_type"`      // 系统类型
-	BootType               string                    `json:"boot_type"`    // 引导方式: bios/uefi/uefi-secure
-	BootOrder              []string                  `json:"boot_order"`   // 引导顺序（OS 级别: hd, cdrom, network）
-	BootDevices            []BootDevice              `json:"boot_devices"` // 所有可引导设备列表
-	Arch                   string                    `json:"arch"`         // 来宾架构
-	MachineType            string                    `json:"machine_type"` // 机器类型: q35/i440fx/virt
-	Bandwidth              *bw.BandwidthDetail       `json:"bandwidth"`    // 带宽详情
-	LightweightQuota       *model.LightweightVMQuota `json:"lightweight_quota"`
-	Stats                  *VmStats                  `json:"stats"`         // 实时资源使用（缓存数据，SSE 推送用）
-	Credential             *VMCredentialInfo         `json:"credential"`    // 保存的登录凭据
-	Freeze                 bool                      `json:"freeze"`        // 启动时冻结 CPU
-	APIC                   bool                      `json:"apic"`          // APIC 开关
-	PAE                    bool                      `json:"pae"`           // PAE 开关
-	RTCOffset              string                    `json:"rtc_offset"`    // RTC 偏移值: utc/localtime
-	RTCStartDate           string                    `json:"rtc_startdate"` // RTC 开始日期
-	GuestAgent             *vm_xml.VMGuestAgentConfig `json:"guest_agent"`   // QEMU Guest Agent 配置
-	SMBIOS1                *vm_xml.VMSMBIOS1Config    `json:"smbios1"`       // SMBIOS 类型 1 信息
-	MemoryObservationUntil int64                     `json:"memory_observation_until"`
-	MemoryManualPauseUntil int64                     `json:"memory_manual_pause_until"`
-	PCIERootPorts          int                       `json:"pcie_root_ports"` // pcie-root-port 数量（仅 q35/virt 机型）
+	DiskPath               string                        `json:"disk_path"`    // 磁盘路径
+	DiskHealthy            *bool                         `json:"disk_healthy"` // 磁盘完整性标记: nil=未检查, true=正常, false=磁盘文件缺失
+	UUID                   string                        `json:"uuid"`         // 虚拟机 UUID
+	VNCPort                string                        `json:"vnc_port"`     // VNC 端口
+	Snapshots              []string                      `json:"snapshots"`    // 快照列表
+	OSType                 string                        `json:"os_type"`      // 系统类型
+	BootType               string                        `json:"boot_type"`    // 引导方式: bios/uefi/uefi-secure
+	BootOrder              []string                      `json:"boot_order"`   // 引导顺序（OS 级别: hd, cdrom, network）
+	BootDevices            []BootDevice                  `json:"boot_devices"` // 所有可引导设备列表
+	Arch                   string                        `json:"arch"`         // 来宾架构
+	MachineType            string                        `json:"machine_type"` // 机器类型: q35/i440fx/virt
+	Bandwidth              *bw.BandwidthDetail           `json:"bandwidth"`    // 带宽详情
+	LightweightQuota       *model.LightweightVMQuota     `json:"lightweight_quota"`
+	Stats                  *VmStats                      `json:"stats"`              // 实时资源使用（缓存数据，SSE 推送用）
+	Credential             *VMCredentialInfo             `json:"credential"`         // 保存的登录凭据
+	Freeze                 bool                          `json:"freeze"`             // 启动时冻结 CPU
+	APIC                   bool                          `json:"apic"`               // APIC 开关
+	PAE                    bool                          `json:"pae"`                // PAE 开关
+	RTCOffset              string                        `json:"rtc_offset"`         // RTC 偏移值: utc/localtime
+	RTCStartDate           string                        `json:"rtc_startdate"`      // RTC 开始日期
+	GuestAgent             *vm_xml.VMGuestAgentConfig    `json:"guest_agent"`        // QEMU Guest Agent 配置
+	GuestAgentStatus       *guest_agent.GuestAgentStatus `json:"guest_agent_status"` // QEMU Guest Agent 运行时状态
+	SMBIOS1                *vm_xml.VMSMBIOS1Config       `json:"smbios1"`            // SMBIOS 类型 1 信息
+	MemoryObservationUntil int64                         `json:"memory_observation_until"`
+	MemoryManualPauseUntil int64                         `json:"memory_manual_pause_until"`
+	PCIERootPorts          int                           `json:"pcie_root_ports"` // pcie-root-port 数量（仅 q35/virt 机型）
 }
 
 // VmStats 虚拟机资源使用统计

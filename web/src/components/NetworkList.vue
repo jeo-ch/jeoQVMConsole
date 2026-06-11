@@ -279,6 +279,12 @@
               <el-table-column label="网卡型号" width="100">
                 <template #default="{ row }">{{ row.binding?.nic_model || 'virtio' }}</template>
               </el-table-column>
+              <el-table-column label="IP 地址" min-width="130">
+                <template #default="{ row }">
+                  <code v-if="getInterfaceIP(row)" class="ip-code">{{ getInterfaceIP(row) }}</code>
+                  <span v-else style="color: var(--el-text-color-placeholder);">-</span>
+                </template>
+              </el-table-column>
               <el-table-column label="VPC 交换机" min-width="160">
                 <template #default="{ row }">
                   <span v-if="row.switch">
@@ -1783,10 +1789,22 @@ const ipSourceText = (source) => {
     guest_agent: 'Guest Agent',
     arp: 'ARP',
     ovs_dhcp: 'OVS DHCP',
+    vpc_dhcp: 'VPC DHCP',
     libvirt_lease: 'libvirt 租约',
     static: '静态绑定'
   }
   return map[source] || '-'
+}
+
+// 根据网口行获取运行时 IP（通过接口序号匹配 runtimeStatus）
+const getInterfaceIP = (row) => {
+  const order = row.binding?.interface_order
+  if (order === undefined || order === null) return ''
+  const ifaces = runtimeStatus.value?.interfaces || []
+  if (order < ifaces.length) {
+    return ifaces[order].ip || ''
+  }
+  return ''
 }
 
 const queueStatusText = (bandwidth) => {
@@ -2350,5 +2368,15 @@ defineExpose({ refresh: fetchData })
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+/* IP 列内联代码样式 */
+.ip-code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  padding: 1px 6px;
+  border-radius: 3px;
 }
 </style>

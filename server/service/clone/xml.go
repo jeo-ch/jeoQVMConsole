@@ -90,13 +90,20 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 	if params.MaxVCPU > params.VCPU {
 		vcpuArg = fmt.Sprintf("--vcpus %d,maxvcpus=%d", params.VCPU, params.MaxVCPU)
 	}
+	// 网络：仅在有主网口交换机配置时才添加网络接口，否则显式禁用
+	var networkArg string
+	if params.SwitchID != 0 {
+		networkArg = D.BuildOVSVirtInstallNetworkArg(params.NicModel) + " "
+	} else {
+		networkArg = "--network none "
+	}
 	installCmd := fmt.Sprintf(
 		"virt-install --name %s --ram %d %s "+
 			"--machine q35 "+
 			bootOpt+
 			"--disk %s,format=qcow2,bus=%s,discard=unmap,detect_zeroes=unmap "+
 			"--osinfo detect=on,require=off "+
-			D.BuildOVSVirtInstallNetworkArg(params.NicModel)+" "+
+			networkArg+
 			"--graphics vnc,listen=0.0.0.0 "+
 			"--video virtio "+
 			"--import --cpu host-passthrough --print-xml",
@@ -111,7 +118,7 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 
 	pciePortCount := params.PCIERootPorts
 	if pciePortCount <= 0 {
-		pciePortCount = 4
+		pciePortCount = 6
 	}
 	vmXML = D.InjectPCIERootPorts(vmXML, pciePortCount)
 

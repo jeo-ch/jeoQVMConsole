@@ -180,38 +180,39 @@ func ConfirmSelfLightweightVMRegistration(c *gin.Context) {
 
 // SelfCloneVmRequest 用户自助克隆请求
 type SelfCloneVmRequest struct {
-	Name                 string                          `json:"name" binding:"required"`
-	Remark               string                          `json:"remark"`
-	Template             string                          `json:"template" binding:"required"`
-	TemplateType         string                          `json:"template_type"`
-	CloneMode            string                          `json:"clone_mode"`
-	VCPU                 int                             `json:"vcpu" binding:"required"`
-	RAM                  int                             `json:"ram" binding:"required"`
-	DiskSize             int                             `json:"disk_size"`
-	Hostname             string                          `json:"hostname"`
-	User                 string                          `json:"user"`
-	Password             string                          `json:"password"`
-	Autostart            bool                            `json:"autostart"`
-	Freeze               bool                            `json:"freeze"`
-	APIC                 *bool                           `json:"apic"`
-	PAE                  *bool                           `json:"pae"`
-	RTCOffset            string                          `json:"rtc_offset"`
-	RTCStartDate         string                          `json:"rtc_startdate"`
-	GuestAgent           *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1              *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	UEFI                 *bool                           `json:"uefi"`
-	DiskBus              string                          `json:"disk_bus"`
-	VideoModel           string                          `json:"video_model"`
-	CPUTopologyMode      string                          `json:"cpu_topology_mode"`
-	FirstBootRebootMode  string                          `json:"first_boot_reboot_mode"`
+	Name                 string                            `json:"name" binding:"required"`
+	Remark               string                            `json:"remark"`
+	Template             string                            `json:"template" binding:"required"`
+	TemplateType         string                            `json:"template_type"`
+	CloneMode            string                            `json:"clone_mode"`
+	VCPU                 int                               `json:"vcpu" binding:"required"`
+	RAM                  int                               `json:"ram" binding:"required"`
+	DiskSize             int                               `json:"disk_size"`
+	Hostname             string                            `json:"hostname"`
+	User                 string                            `json:"user"`
+	Password             string                            `json:"password"`
+	Autostart            bool                              `json:"autostart"`
+	Freeze               bool                              `json:"freeze"`
+	APIC                 *bool                             `json:"apic"`
+	PAE                  *bool                             `json:"pae"`
+	RTCOffset            string                            `json:"rtc_offset"`
+	RTCStartDate         string                            `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	UEFI                 *bool                             `json:"uefi"`
+	DiskBus              string                            `json:"disk_bus"`
+	VideoModel           string                            `json:"video_model"`
+	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
+	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
 	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID             uint                            `json:"switch_id"`
-	SecurityGroupID      uint                            `json:"security_group_id"`
-	StoragePoolID        string                          `json:"storage_pool_id"`
-	ExtraDisks           []service.ExtraDiskParam        `json:"extra_disks"`
-	NicModel             string                          `json:"nic_model"`
-	PreserveFnOSDeviceID bool                            `json:"preserve_fnos_device_id"`
-	FnOSDeviceID         string                          `json:"fnos_device_id"`
+	SwitchID             uint                              `json:"switch_id"`
+	SecurityGroupID      uint                              `json:"security_group_id"`
+	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	StoragePoolID        string                            `json:"storage_pool_id"`
+	ExtraDisks           []service.ExtraDiskParam          `json:"extra_disks"`
+	NicModel             string                            `json:"nic_model"`
+	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
+	FnOSDeviceID         string                            `json:"fnos_device_id"`
 }
 
 // SelfCloneVm 用户自助从模板克隆VM
@@ -295,13 +296,18 @@ func SelfCloneVm(c *gin.Context) {
 		})
 		return
 	}
-	switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
-	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":    403,
-			"message": err.Error(),
-		})
-		return
+	// 仅当用户指定了交换机时才解析 VPC
+	if req.SwitchID != 0 {
+		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{
+				"code":    403,
+				"message": err.Error(),
+			})
+			return
+		}
+		req.SwitchID = switchID
+		req.SecurityGroupID = securityGroupID
 	}
 
 	params := &service.CloneParams{
@@ -332,8 +338,9 @@ func SelfCloneVm(c *gin.Context) {
 		TemplateRootPass:     meta.RootPassword,
 		TemplateUser:         meta.TemplateUser,
 		MemoryDynamic:        sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM),
-		SwitchID:             switchID,
-		SecurityGroupID:      securityGroupID,
+		SwitchID:             req.SwitchID,
+		SecurityGroupID:      req.SecurityGroupID,
+		ExtraNics:            req.ExtraNics,
 		StoragePoolID:        req.StoragePoolID,
 		ExtraDisks:           req.ExtraDisks,
 		NicModel:             req.NicModel,

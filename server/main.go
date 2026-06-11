@@ -813,15 +813,8 @@ func bindTaskVMToVPC(owner, vmName string, switchID, securityGroupID uint) error
 		return nil
 	}
 	if switchID == 0 || securityGroupID == 0 {
-		resolvedSwitchID, resolvedSecurityGroupID, err := service.ResolveVPCForVMCreate(owner, switchID, securityGroupID)
-		if err != nil {
-			return err
-		}
-		switchID = resolvedSwitchID
-		securityGroupID = resolvedSecurityGroupID
-	}
-	if switchID == 0 || securityGroupID == 0 {
-		logger.App.Info("VM 未解析到交换机或安全组，跳过自动绑定", "vm", vmName)
+		// 未指定交换机/安全组，不再自动解析；若无网口则虚拟机将无网络
+		logger.App.Info("VM 未指定交换机，跳过自动绑定", "vm", vmName)
 		return nil
 	}
 	if err := service.BindVMToVPC(owner, vmName, switchID, securityGroupID); err != nil {

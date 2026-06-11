@@ -9,89 +9,89 @@ import (
 	"kvm_console/model"
 	"kvm_console/service"
 	clonepkg "kvm_console/service/clone"
-	"kvm_console/service/vm/migration"
 	vm_memory "kvm_console/service/vm/memory"
+	"kvm_console/service/vm/migration"
 	"kvm_console/service/vm_xml"
 	"kvm_console/taskqueue"
 )
 
 // CloneVmRequest 克隆请求
 type CloneVmRequest struct {
-	Name                 string                          `json:"name" binding:"required"`
-	Remark               string                          `json:"remark"`
-	Template             string                          `json:"template" binding:"required"`
-	TemplateType         string                          `json:"template_type"`
-	CloneMode            string                          `json:"clone_mode"`
-	VCPU                 int                             `json:"vcpu" binding:"required"`
-	RAM                  int                             `json:"ram" binding:"required"`
-	DiskSize             int                             `json:"disk_size"`
-	Hostname             string                          `json:"hostname"`
-	User                 string                          `json:"user"`
-	Password             string                          `json:"password"`
-	Autostart            bool                            `json:"autostart"`
-	Freeze               bool                            `json:"freeze"`
-	APIC                 *bool                           `json:"apic"`
-	PAE                  *bool                           `json:"pae"`
-	RTCOffset            string                          `json:"rtc_offset"`
-	RTCStartDate         string                          `json:"rtc_startdate"`
-	GuestAgent           *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1              *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	UEFI                 *bool                           `json:"uefi"`
-	TemplateRootPass     string                          `json:"template_root_pass"`
-	TemplateUser         string                          `json:"template_user"`
-	DiskBus              string                          `json:"disk_bus"`
-	VideoModel           string                          `json:"video_model"`
-	CPUTopologyMode      string                          `json:"cpu_topology_mode"`
-	CPULimitPercent      int                             `json:"cpu_limit_percent"`
-	CPUAffinity          string                          `json:"cpu_affinity"`        // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode  string                          `json:"first_boot_reboot_mode"`
+	Name                 string                            `json:"name" binding:"required"`
+	Remark               string                            `json:"remark"`
+	Template             string                            `json:"template" binding:"required"`
+	TemplateType         string                            `json:"template_type"`
+	CloneMode            string                            `json:"clone_mode"`
+	VCPU                 int                               `json:"vcpu" binding:"required"`
+	RAM                  int                               `json:"ram" binding:"required"`
+	DiskSize             int                               `json:"disk_size"`
+	Hostname             string                            `json:"hostname"`
+	User                 string                            `json:"user"`
+	Password             string                            `json:"password"`
+	Autostart            bool                              `json:"autostart"`
+	Freeze               bool                              `json:"freeze"`
+	APIC                 *bool                             `json:"apic"`
+	PAE                  *bool                             `json:"pae"`
+	RTCOffset            string                            `json:"rtc_offset"`
+	RTCStartDate         string                            `json:"rtc_startdate"`
+	GuestAgent           *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1              *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	UEFI                 *bool                             `json:"uefi"`
+	TemplateRootPass     string                            `json:"template_root_pass"`
+	TemplateUser         string                            `json:"template_user"`
+	DiskBus              string                            `json:"disk_bus"`
+	VideoModel           string                            `json:"video_model"`
+	CPUTopologyMode      string                            `json:"cpu_topology_mode"`
+	CPULimitPercent      int                               `json:"cpu_limit_percent"`
+	CPUAffinity          string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode  string                            `json:"first_boot_reboot_mode"`
 	MemoryDynamic        *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID             uint                            `json:"switch_id"`
-	SecurityGroupID      uint                            `json:"security_group_id"`
-	ExtraNics            []service.AddVMInterfaceRequest `json:"extra_nics"`
-	StoragePoolID        string                          `json:"storage_pool_id"`
-	ExtraDisks           []service.ExtraDiskParam        `json:"extra_disks"`
-	NicModel             string                          `json:"nic_model"`
-	PreserveFnOSDeviceID bool                            `json:"preserve_fnos_device_id"`
-	FnOSDeviceID         string                          `json:"fnos_device_id"`
-	SystemDiskIOPS       *service.DiskIOPSTune           `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
+	SwitchID             uint                              `json:"switch_id"`
+	SecurityGroupID      uint                              `json:"security_group_id"`
+	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	StoragePoolID        string                            `json:"storage_pool_id"`
+	ExtraDisks           []service.ExtraDiskParam          `json:"extra_disks"`
+	NicModel             string                            `json:"nic_model"`
+	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
+	FnOSDeviceID         string                            `json:"fnos_device_id"`
+	SystemDiskIOPS       *service.DiskIOPSTune             `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
 }
 
 // BatchCloneRequest 批量克隆请求
 type BatchCloneRequest struct {
-	Prefix              string                      `json:"prefix" binding:"required"`
-	StartNum            int                         `json:"start_num"`
-	Count               int                         `json:"count" binding:"required"`
-	Template            string                      `json:"template" binding:"required"`
-	TemplateType        string                      `json:"template_type"`
-	CloneMode           string                      `json:"clone_mode"` // 克隆模式: linked / full
-	VCPU                int                         `json:"vcpu" binding:"required"`
-	RAM                 int                         `json:"ram" binding:"required"`
-	DiskSize            int                         `json:"disk_size"`
-	Hostname            string                      `json:"hostname"` // 主机名（空则由系统自动生成）
-	User                string                      `json:"user"`     // 新用户名
-	Password            string                      `json:"password"`
-	Autostart           bool                        `json:"autostart"`
-	Freeze              bool                        `json:"freeze"`
-	APIC                *bool                       `json:"apic"`
-	PAE                 *bool                       `json:"pae"`
-	RTCOffset           string                      `json:"rtc_offset"`
-	RTCStartDate        string                      `json:"rtc_startdate"`
-	GuestAgent          *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1             *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	UEFI                *bool                       `json:"uefi"`
-	TemplateRootPass    string                      `json:"template_root_pass"`
-	TemplateUser        string                      `json:"template_user"`
-	VideoModel          string                      `json:"video_model"`
-	DiskBus             string                      `json:"disk_bus"`        // 系统盘总线类型
-	NicModel            string                      `json:"nic_model"`       // 网卡模型
-	StoragePoolID       string                      `json:"storage_pool_id"` // 存储池
-	CPUTopologyMode     string                      `json:"cpu_topology_mode"`
-	CPULimitPercent     int                         `json:"cpu_limit_percent"`
-	CPUAffinity         string                      `json:"cpu_affinity"`        // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode string                      `json:"first_boot_reboot_mode"`
-	SwitchID            uint                        `json:"switch_id"`         // VPC 交换机 ID
-	SecurityGroupID     uint                        `json:"security_group_id"` // 安全组 ID
+	Prefix              string                          `json:"prefix" binding:"required"`
+	StartNum            int                             `json:"start_num"`
+	Count               int                             `json:"count" binding:"required"`
+	Template            string                          `json:"template" binding:"required"`
+	TemplateType        string                          `json:"template_type"`
+	CloneMode           string                          `json:"clone_mode"` // 克隆模式: linked / full
+	VCPU                int                             `json:"vcpu" binding:"required"`
+	RAM                 int                             `json:"ram" binding:"required"`
+	DiskSize            int                             `json:"disk_size"`
+	Hostname            string                          `json:"hostname"` // 主机名（空则由系统自动生成）
+	User                string                          `json:"user"`     // 新用户名
+	Password            string                          `json:"password"`
+	Autostart           bool                            `json:"autostart"`
+	Freeze              bool                            `json:"freeze"`
+	APIC                *bool                           `json:"apic"`
+	PAE                 *bool                           `json:"pae"`
+	RTCOffset           string                          `json:"rtc_offset"`
+	RTCStartDate        string                          `json:"rtc_startdate"`
+	GuestAgent          *vm_xml.VMGuestAgentConfig      `json:"guest_agent"`
+	SMBIOS1             *vm_xml.VMSMBIOS1Config         `json:"smbios1"`
+	UEFI                *bool                           `json:"uefi"`
+	TemplateRootPass    string                          `json:"template_root_pass"`
+	TemplateUser        string                          `json:"template_user"`
+	VideoModel          string                          `json:"video_model"`
+	DiskBus             string                          `json:"disk_bus"`        // 系统盘总线类型
+	NicModel            string                          `json:"nic_model"`       // 网卡模型
+	StoragePoolID       string                          `json:"storage_pool_id"` // 存储池
+	CPUTopologyMode     string                          `json:"cpu_topology_mode"`
+	CPULimitPercent     int                             `json:"cpu_limit_percent"`
+	CPUAffinity         string                          `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode string                          `json:"first_boot_reboot_mode"`
+	SwitchID            uint                            `json:"switch_id"`         // VPC 交换机 ID
+	SecurityGroupID     uint                            `json:"security_group_id"` // 安全组 ID
 	ExtraNics           []service.AddVMInterfaceRequest `json:"extra_nics"`
 }
 
@@ -235,16 +235,19 @@ func CloneVm(c *gin.Context) {
 			})
 			return
 		}
-		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
-		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": err.Error(),
-			})
-			return
+		// 仅当用户指定了交换机时才解析 VPC
+		if req.SwitchID != 0 {
+			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
+			if err != nil {
+				c.JSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": err.Error(),
+				})
+				return
+			}
+			params.SwitchID = switchID
+			params.SecurityGroupID = securityGroupID
 		}
-		params.SwitchID = switchID
-		params.SecurityGroupID = securityGroupID
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeClone, params, usernameStr)
@@ -368,16 +371,19 @@ func BatchCloneVm(c *gin.Context) {
 			})
 			return
 		}
-		switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
-		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{
-				"code":    403,
-				"message": err.Error(),
-			})
-			return
+		// 仅当用户指定了交换机时才解析 VPC
+		if req.SwitchID != 0 {
+			switchID, securityGroupID, err := service.ResolveVPCForVMCreate(usernameStr, req.SwitchID, req.SecurityGroupID)
+			if err != nil {
+				c.JSON(http.StatusForbidden, gin.H{
+					"code":    403,
+					"message": err.Error(),
+				})
+				return
+			}
+			params.SwitchID = switchID
+			params.SecurityGroupID = securityGroupID
 		}
-		params.SwitchID = switchID
-		params.SecurityGroupID = securityGroupID
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeBatch, params, usernameStr)
@@ -620,8 +626,8 @@ func ForceDeleteVm(c *gin.Context) {
 	usernameStr := username.(string)
 
 	params := map[string]interface{}{
-		"name":     name,
-		"action":   "force_delete",
+		"name":   name,
+		"action": "force_delete",
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeDelete, params, usernameStr)
