@@ -2,7 +2,7 @@
 schema_version: 1
 locale: zh-CN
 branch: main
-exported_at: "2026-06-12T11:54:56Z"
+exported_at: "2026-06-12T13:25:20Z"
 modules:
     "":
         dir_name: QVMConsole 虚拟化资源编排平台
@@ -499,8 +499,8 @@ modules:
             - server/
         source_files: []
         children:
-            - backend_service/cross_cutting_wires
             - backend_service/entrypoint
+            - backend_service/cross_cutting_wires
         depends_on: []
         related_to:
             - path: frontend_app
