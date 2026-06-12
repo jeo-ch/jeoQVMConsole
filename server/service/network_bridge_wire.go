@@ -52,8 +52,8 @@ func EnsureAllNetworkBridgesRuntime() error {
 }
 
 // EnsureOVSBridgeDirect delegates to bridge.EnsureOVSBridgeDirect
-func EnsureOVSBridgeDirect(bridgeName, uplink string, migrateHostIP bool) error {
-	return bridge.EnsureOVSBridgeDirect(bridgeName, uplink, migrateHostIP)
+func EnsureOVSBridgeDirect(bridgeName, uplink string, migrateHostIP bool, cfg bridge.HostIPConfig) error {
+	return bridge.EnsureOVSBridgeDirect(bridgeName, uplink, migrateHostIP, cfg)
 }
 
 // BridgeModeForSwitch delegates to bridge.BridgeModeForSwitch

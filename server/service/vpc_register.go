@@ -4,6 +4,7 @@ import (
 	"kvm_console/model"
 	fwpkg "kvm_console/service/firewall"
 	netpkg "kvm_console/service/network"
+	bridge "kvm_console/service/network/bridge"
 	vpcpkg "kvm_console/service/network/vpc"
 	ovspkg "kvm_console/service/ovs"
 	vmpkg "kvm_console/service/vm"
@@ -241,7 +242,10 @@ func init() {
 	vpcpkg.HookOvsUplink = ovspkg.OvsUplink
 	vpcpkg.HookEnsureOVSNetwork = ovspkg.EnsureOVSNetworkReady
 	vpcpkg.HookEnsureOVSBridgeExists = EnsureOVSBridgeExists
-	vpcpkg.HookEnsureOVSBridgeDirect = EnsureOVSBridgeDirect
+	vpcpkg.HookEnsureOVSBridgeDirect = func(bridgeName, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric string) error {
+		cfg := bridge.HostIPConfig{Addrs: hostAddrs, Gateway: hostGW, Metric: hostMetric}
+		return EnsureOVSBridgeDirect(bridgeName, uplink, migrateHostIP, cfg)
+	}
 	vpcpkg.HookBridgeNameForSwitch = BridgeNameForSwitch
 	vpcpkg.HookSwitchUsesDirectBridge = SwitchUsesDirectBridge
 	vpcpkg.HookBridgeModeForSwitch = BridgeModeForSwitch

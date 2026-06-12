@@ -60,22 +60,22 @@ var (
 	HookEnsureOVSNetwork func() error
 
 	HookEnsureOVSBridgeExists func(bridge string) error
-	HookEnsureOVSBridgeDirect func(bridge, uplink string, migrateHostIP bool) error
+	HookEnsureOVSBridgeDirect func(bridge, uplink string, migrateHostIP bool, hostAddrs, hostGW, hostMetric string) error
 
-	HookBridgeNameForSwitch   func(sw model.VPCSwitch) string
+	HookBridgeNameForSwitch    func(sw model.VPCSwitch) string
 	HookSwitchUsesDirectBridge func(sw model.VPCSwitch) bool
-	HookBridgeModeForSwitch   func(sw model.VPCSwitch) string
+	HookBridgeModeForSwitch    func(sw model.VPCSwitch) string
 	HookNormalizeBridgeMode    func(mode string) string
 
-	HookAddOVSBandwidthMeter    func(bridge string, meterID uint32, rateKbit int) error
-	HookGetOVSInterfaceOfPort   func(vnetIF string) string
+	HookAddOVSBandwidthMeter     func(bridge string, meterID uint32, rateKbit int) error
+	HookGetOVSInterfaceOfPort    func(vnetIF string) string
 	HookApplyTCVPCSwitchDownlink func(gwPort string, downMbps int)
-	HookClearTCVPCSwitchDownlink  func(gwPort string)
+	HookClearTCVPCSwitchDownlink func(gwPort string)
 
-	HookEnsureIPTablesRule       func(checkCmd, addCmd, label string) error
-	HookEnsureLocalDNSMasqInput   func(iface string) error
-	HookRemoveLocalDNSMasqInput   func(iface string)
-	HookWriteFileIfChanged        func(path string, content []byte, perm os.FileMode) (bool, error)
+	HookEnsureIPTablesRule      func(checkCmd, addCmd, label string) error
+	HookEnsureLocalDNSMasqInput func(iface string) error
+	HookRemoveLocalDNSMasqInput func(iface string)
+	HookWriteFileIfChanged      func(path string, content []byte, perm os.FileMode) (bool, error)
 
 	HookParseVirshDomiflist func(text string) []RuntimeInterface
 )
@@ -99,17 +99,17 @@ var (
 // ── VM / User hooks ──
 
 var (
-	HookFindVMOwner          func(vmName string) string
+	HookFindVMOwner            func(vmName string) string
 	HookIsLightweightCloudUser func(username string) bool
-	HookGetUserVMList        func(username string) []string
-	HookUserOwnsVM           func(username, vmName string) bool
-	HookGetLightweightVMQuota func(vmName string) (*model.LightweightVMQuota, error)
-	HookClearVMBandwidth     func(vmName string) error
+	HookGetUserVMList          func(username string) []string
+	HookUserOwnsVM             func(username, vmName string) bool
+	HookGetLightweightVMQuota  func(vmName string) (*model.LightweightVMQuota, error)
+	HookClearVMBandwidth       func(vmName string) error
 
-	HookListAllVMNames     func() []string
-	HookGetFirewallVMIP    func(vmName string) string
+	HookListAllVMNames             func() []string
+	HookGetFirewallVMIP            func(vmName string) string
 	HookPublicIPNATPrivateIPsForVM func(vmName string) []string
-	HookGetVMMACByOrder     func(vmName string, order int) string
+	HookGetVMMACByOrder            func(vmName string, order int) string
 
 	HookAttachVMInterface func(vmName string, sw model.VPCSwitch, nicModel string, interfaceOrder int) error
 	HookDetachVMInterface func(vmName string, interfaceOrder int) error
@@ -119,17 +119,17 @@ var (
 
 var (
 	HookRemoveVPCPortForwardAcceptRules func()
-	HookSavePortForwardRules             func() error
+	HookSavePortForwardRules            func() error
 	HookRemovePortForwardsForCIDR       func(cidr string)
-	HookListLivePortForwards             func() ([]PortForwardRuleBrief, error)
-	HookCleanupOVSStaticHostsForVMs      func(vmNames []string)
+	HookListLivePortForwards            func() ([]PortForwardRuleBrief, error)
+	HookCleanupOVSStaticHostsForVMs     func(vmNames []string)
 )
 
 // ── Traffic / Bandwidth hooks ──
 
 var (
 	HookGetGlobalEffectiveBandwidth func() (downMbps, upMbps int)
-	HookFormatTrafficBytes           func(bytes int64) string
+	HookFormatTrafficBytes          func(bytes int64) string
 )
 
 // ── Utility hooks ──

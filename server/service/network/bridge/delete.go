@@ -6,8 +6,8 @@ import (
 
 	"kvm_console/logger"
 	"kvm_console/model"
-	"kvm_console/utils"
 	ovspkg "kvm_console/service/ovs"
+	"kvm_console/utils"
 )
 
 func DeleteNetworkBridge(id uint) error {
@@ -62,7 +62,12 @@ func EnsureAllNetworkBridgesRuntime() error {
 	}
 	var lastErr error
 	for _, row := range rows {
-		if err := EnsureOVSBridgeDirect(row.Name, row.UplinkIF, row.MigrateHostIP); err != nil {
+		cfg := HostIPConfig{
+			Addrs:   row.HostAddrs,
+			Gateway: row.HostGateway,
+			Metric:  row.HostMetric,
+		}
+		if err := EnsureOVSBridgeDirect(row.Name, row.UplinkIF, row.MigrateHostIP, cfg); err != nil {
 			lastErr = err
 			logger.App.Warn("恢复桥接网桥失败", "bridge", row.Name, "error", err)
 		}

@@ -2,9 +2,37 @@ package bridge
 
 import (
 	"fmt"
+	"strings"
 
 	"kvm_console/utils"
 )
+
+// HostIPConfig 存储从接口捕获的 IP 配置，用于持久化到数据库和恢复脚本。
+type HostIPConfig struct {
+	Addrs   string // 换行分隔的 CIDR 地址列表
+	Gateway string // 默认网关 IP
+	Metric  string // 路由 metric
+}
+
+// CaptureInterfaceIPv4 从指定接口捕获当前 IPv4 配置（地址、网关、metric）。
+func CaptureInterfaceIPv4(iface string) HostIPConfig {
+	var cfg HostIPConfig
+	result := utils.ExecCommand("bash", "-c", fmt.Sprintf(
+		`ip -4 -o addr show dev %s scope global 2>/dev/null | awk '{print $4}'`,
+		utils.ShellSingleQuote(iface)))
+	cfg.Addrs = strings.TrimSpace(result.Stdout)
+
+	result = utils.ExecCommand("bash", "-c", fmt.Sprintf(
+		`ip -4 route show default dev %s 2>/dev/null | awk '{print $3; exit}'`,
+		utils.ShellSingleQuote(iface)))
+	cfg.Gateway = strings.TrimSpace(result.Stdout)
+
+	result = utils.ExecCommand("bash", "-c", fmt.Sprintf(
+		`ip -4 route show default dev %s 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="metric") {print $(i+1); exit}}'`,
+		utils.ShellSingleQuote(iface)))
+	cfg.Metric = strings.TrimSpace(result.Stdout)
+	return cfg
+}
 
 func migrateInterfaceIPv4ToBridge(uplink, bridge string) {
 	script := fmt.Sprintf(`set -e
@@ -13,6 +41,44 @@ BRIDGE=%s
 %s
 `, utils.ShellSingleQuote(uplink), utils.ShellSingleQuote(bridge), bridgeHostIPMigrationShell())
 	utils.ExecCommand("bash", "-c", script)
+}
+
+// applyStaticIPv4ToBridge 使用静态存储的 IP 配置应用到网桥（用于重启后恢复）。
+func applyStaticIPv4ToBridge(bridge string, cfg HostIPConfig) {
+	if strings.TrimSpace(cfg.Addrs) == "" {
+		return
+	}
+	script := fmt.Sprintf(`set -e
+BRIDGE=%s
+HOST_ADDRS=%s
+HOST_GW=%s
+HOST_METRIC=%s
+%s
+`, utils.ShellSingleQuote(bridge),
+		utils.ShellSingleQuote(cfg.Addrs),
+		utils.ShellSingleQuote(cfg.Gateway),
+		utils.ShellSingleQuote(cfg.Metric),
+		bridgeHostIPApplyStaticShell())
+	utils.ExecCommand("bash", "-c", script)
+}
+
+// bridgeHostIPApplyStaticShell 生成使用静态变量应用 IP 的 shell 代码。
+func bridgeHostIPApplyStaticShell() string {
+	return `if [ -n "$HOST_ADDRS" ]; then
+  while IFS= read -r addr; do
+    [ -n "$addr" ] || continue
+    ip addr replace "$addr" dev "$BRIDGE"
+  done <<< "$HOST_ADDRS"
+fi
+if [ -n "$HOST_GW" ]; then
+  ip route replace "$HOST_GW" dev "$BRIDGE" scope link 2>/dev/null || true
+  if [ -n "$HOST_METRIC" ]; then
+    ip route replace default via "$HOST_GW" dev "$BRIDGE" metric "$HOST_METRIC"
+  else
+    ip route replace default via "$HOST_GW" dev "$BRIDGE"
+  fi
+fi
+`
 }
 
 func migrateBridgeIPv4ToInterface(bridge, uplink string) {

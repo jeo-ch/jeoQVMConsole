@@ -15,7 +15,7 @@ Wants=network-online.target openvswitch-switch.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'for f in /etc/kvm-console/bridges/*.sh; do [ -e "$f" ] && /bin/bash "$f"; done'
+ExecStart=/bin/bash -c 'RC=0; for f in /etc/kvm-console/bridges/*.sh; do [ -e "$f" ] && /bin/bash "$f" || RC=1; done; exit $RC'
 RemainAfterExit=yes
 
 [Install]

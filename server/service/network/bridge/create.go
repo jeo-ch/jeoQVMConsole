@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"kvm_console/model"
-	"kvm_console/utils"
 	ovspkg "kvm_console/service/ovs"
+	"kvm_console/utils"
 )
 
 func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error) {
@@ -37,10 +37,19 @@ func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error)
 			return nil, fmt.Errorf("网桥名称已存在")
 		}
 	}
-	if err := EnsureOVSBridgeDirect(req.Name, req.UplinkIF, req.MigrateHostIP); err != nil {
+	// 创建前捕获物理网卡当前 IP 配置（必须在加入 OVS 之前）
+	var ipCfg HostIPConfig
+	if req.MigrateHostIP {
+		ipCfg = CaptureInterfaceIPv4(req.UplinkIF)
+	}
+	if err := EnsureOVSBridgeDirect(req.Name, req.UplinkIF, req.MigrateHostIP, ipCfg); err != nil {
 		return nil, err
 	}
-	row := &model.NetworkBridge{Name: req.Name, Mode: BridgeModeDirect, UplinkIF: req.UplinkIF, MigrateHostIP: req.MigrateHostIP}
+	row := &model.NetworkBridge{
+		Name: req.Name, Mode: BridgeModeDirect, UplinkIF: req.UplinkIF,
+		MigrateHostIP: req.MigrateHostIP,
+		HostAddrs:     ipCfg.Addrs, HostGateway: ipCfg.Gateway, HostMetric: ipCfg.Metric,
+	}
 	if model.DB != nil {
 		if err := model.DB.Create(row).Error; err != nil {
 			return nil, fmt.Errorf("保存网桥配置失败: %w", err)
@@ -59,7 +68,7 @@ func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error)
 	return row, nil
 }
 
-func EnsureOVSBridgeDirect(bridge, uplink string, migrateHostIP bool) error {
+func EnsureOVSBridgeDirect(bridge, uplink string, migrateHostIP bool, cfg HostIPConfig) error {
 	if result := utils.ExecCommand("bash", "-c", "command -v ovs-vsctl"); result.Error != nil {
 		return fmt.Errorf("OVS 未安装，请先安装 openvswitch-switch")
 	}
@@ -76,14 +85,31 @@ func EnsureOVSBridgeDirect(bridge, uplink string, migrateHostIP bool) error {
 		return fmt.Errorf("添加物理网卡到桥接网桥失败: %s", result.Stderr)
 	}
 	utils.ExecCommand("ip", "link", "set", uplink, "up")
-	// 先完成 IP 迁移（必须在禁用 DHCP 之前，否则 networkctl reload 会立即移除 DHCP 地址）
+	// IP 迁移逻辑
 	if migrateHostIP {
-		migrateInterfaceIPv4ToBridge(uplink, bridge)
-		ensureBridgeResolvedDNS(uplink, bridge)
+		// 检查网桥是否已有 IP（重启恢复场景：symbol 服务已应用了静态 IP）
+		bridgeCfg := CaptureInterfaceIPv4(bridge)
+		if strings.TrimSpace(bridgeCfg.Addrs) == "" {
+			// 网桥没有 IP，尝试从物理口迁移或使用存储值
+			uplinkCfg := CaptureInterfaceIPv4(uplink)
+			if strings.TrimSpace(uplinkCfg.Addrs) != "" {
+				// 物理口有 IP，执行动态迁移
+				migrateInterfaceIPv4ToBridge(uplink, bridge)
+				ensureBridgeResolvedDNS(uplink, bridge)
+			} else if strings.TrimSpace(cfg.Addrs) != "" {
+				// 物理口也没 IP，使用存储的静态配置恢复
+				applyStaticIPv4ToBridge(bridge, cfg)
+				ensureBridgeResolvedDNS(uplink, bridge)
+			}
+		}
+		// 如果 cfg 为空但网桥已有 IP，更新 cfg 用于写入脚本
+		if strings.TrimSpace(cfg.Addrs) == "" {
+			cfg = CaptureInterfaceIPv4(bridge)
+		}
 	}
 	// IP 已迁移完成后再禁用 networkd DHCP，避免周期性 DHCP Discover 干扰 OVS 数据通道
 	disableNetworkdDHCPForPort(uplink)
-	if err := writeBridgeRestoreScript(bridge, uplink, migrateHostIP); err != nil {
+	if err := writeBridgeRestoreScript(bridge, uplink, migrateHostIP, cfg); err != nil {
 		return err
 	}
 	if err := writeBridgeRestoreUnit(); err != nil {

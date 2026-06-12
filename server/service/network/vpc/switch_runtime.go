@@ -25,7 +25,7 @@ func EnsureVPCSwitchRuntime(sw model.VPCSwitch) error {
 		if err := model.DB.Where("name = ?", HookBridgeNameForSwitch(sw)).First(&bridge).Error; err != nil {
 			return fmt.Errorf("桥接网桥 %s 不存在", HookBridgeNameForSwitch(sw))
 		}
-		if err := HookEnsureOVSBridgeDirect(bridge.Name, bridge.UplinkIF, bridge.MigrateHostIP); err != nil {
+		if err := HookEnsureOVSBridgeDirect(bridge.Name, bridge.UplinkIF, bridge.MigrateHostIP, bridge.HostAddrs, bridge.HostGateway, bridge.HostMetric); err != nil {
 			return err
 		}
 		return ApplyVPCSwitchBandwidth(sw)
