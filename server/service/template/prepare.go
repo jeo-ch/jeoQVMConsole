@@ -68,6 +68,7 @@ func PrepareTemplate(params *PrepareTemplateParams) error {
 		BootType:      bootType,
 		RootPassword:  params.RootPassword,
 		TemplateUser:  params.TemplateUser,
+		CloudInitMode: params.CloudInitMode,
 		DefaultConfig: defaultConfig,
 		NodeID:        generateTemplateID("node"),
 		AdminName:     adminName,

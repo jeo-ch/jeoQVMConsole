@@ -13,13 +13,13 @@ import (
 // ── Constants ──
 
 const (
-	vmTemplateSourceMetadataURI = "https://kvm-console.local/template-source"
-	vmTemplateSourceMetadataKey = "template-source"
-	templateBootDetectTimeout   = 2 * time.Minute
-	TemplateDeleteModeCascade   = "cascade"
-	TemplateDeleteModePromote   = "promote_children"
+	vmTemplateSourceMetadataURI  = "https://kvm-console.local/template-source"
+	vmTemplateSourceMetadataKey  = "template-source"
+	templateBootDetectTimeout    = 2 * time.Minute
+	TemplateDeleteModeCascade    = "cascade"
+	TemplateDeleteModePromote    = "promote_children"
 	TemplateDeleteModePromoteHot = "promote_children_hot"
-	templateDiskInfoWorkerLimit = 4
+	templateDiskInfoWorkerLimit  = 4
 
 	defaultLinuxTemplateCategory   = "Ubuntu"
 	defaultWindowsTemplateCategory = "WindowsServer2022"
@@ -54,8 +54,9 @@ type TemplateMeta struct {
 	BootType      string                 `json:"boot_type,omitempty"`       // 启动类型: bios/uefi
 	BootVerified  bool                   `json:"boot_verified,omitempty"`   // 是否已确认启动类型
 	NVRAMPath     string                 `json:"nvram_path,omitempty"`      // UEFI 模板 NVRAM 变量文件
-	RootPassword  string                 `json:"root_password,omitempty"`   // 模板 root 密码
-	TemplateUser  string                 `json:"template_user,omitempty"`   // 模板中的普通用户名
+	RootPassword  string                 `json:"root_password,omitempty"`   // 模板 root 密码（已废弃，保留兼容旧元数据）
+	TemplateUser  string                 `json:"template_user,omitempty"`   // 模板中的普通用户名（克隆时用于用户名重命名）
+	CloudInitMode string                 `json:"cloud_init_mode,omitempty"` // cloud-init 初始化模式: "nocloud"=支持 cloud-init，""=仅离线初始化
 	DefaultConfig *TemplateDefaultConfig `json:"default_config,omitempty"`  // 模板默认硬件配置
 	TemplateUID   string                 `json:"template_uid,omitempty"`    // 模板族唯一标识
 	NodeID        string                 `json:"node_id,omitempty"`         // 当前节点唯一标识
@@ -86,17 +87,18 @@ type TemplateDefaultConfig struct {
 
 // TemplateInfo 模板信息
 type TemplateInfo struct {
-	Name          string                 `json:"name"`                    // 文件名兼容标识
-	ActualSize    string                 `json:"actual_size"`             // 实际磁盘占用
-	VirtualSize   string                 `json:"virtual_size"`            // 虚拟大小
-	Type          string                 `json:"type"`                    // 类型: linux/windows/fnos/other
-	Category      string                 `json:"category,omitempty"`      // 二级分类，当前用于 Linux 发行版和 Windows 版本
-	BootType      string                 `json:"boot_type,omitempty"`     // 启动类型: bios/uefi
-	NVRAMPath     string                 `json:"nvram_path,omitempty"`    // UEFI 模板 NVRAM 变量文件
-	IsDefault     bool                   `json:"is_default"`              // 是否默认模板
-	Path          string                 `json:"path"`                    // 完整路径
-	RootPassword  string                 `json:"root_password,omitempty"` // 模板 root 密码
-	TemplateUser  string                 `json:"template_user,omitempty"` // 模板中的普通用户名
+	Name          string                 `json:"name"`                      // 文件名兼容标识
+	ActualSize    string                 `json:"actual_size"`               // 实际磁盘占用
+	VirtualSize   string                 `json:"virtual_size"`              // 虚拟大小
+	Type          string                 `json:"type"`                      // 类型: linux/windows/fnos/other
+	Category      string                 `json:"category,omitempty"`        // 二级分类，当前用于 Linux 发行版和 Windows 版本
+	BootType      string                 `json:"boot_type,omitempty"`       // 启动类型: bios/uefi
+	NVRAMPath     string                 `json:"nvram_path,omitempty"`      // UEFI 模板 NVRAM 变量文件
+	IsDefault     bool                   `json:"is_default"`                // 是否默认模板
+	Path          string                 `json:"path"`                      // 完整路径
+	RootPassword  string                 `json:"root_password,omitempty"`   // 模板 root 密码（已废弃）
+	TemplateUser  string                 `json:"template_user,omitempty"`   // 模板中的普通用户名
+	CloudInitMode string                 `json:"cloud_init_mode,omitempty"` // cloud-init 初始化模式: "nocloud"=支持 cloud-init
 	DefaultConfig *TemplateDefaultConfig `json:"default_config,omitempty"`
 	HasMeta       bool                   `json:"has_meta"`              // 是否有元数据文件
 	Exported      bool                   `json:"exported"`              // 是否存在导出文件
@@ -135,13 +137,14 @@ type TemplateRelatedVM struct {
 
 // PrepareTemplateParams 制作模板参数
 type PrepareTemplateParams struct {
-	VMName       string `json:"vm_name"`
-	TemplateName string `json:"template_name"`           // 管理员侧名称，同时作为文件名
-	DisplayName  string `json:"display_name,omitempty"`  // 用户侧显示文本
-	Type         string `json:"type,omitempty"`          // linux/windows/fnos/other
-	Category     string `json:"category,omitempty"`      // 二级分类，当前用于 Linux 发行版和 Windows 版本
-	RootPassword string `json:"root_password,omitempty"` // 模板 root 密码
-	TemplateUser string `json:"template_user,omitempty"` // 模板中的普通用户名
+	VMName        string `json:"vm_name"`
+	TemplateName  string `json:"template_name"`             // 管理员侧名称，同时作为文件名
+	DisplayName   string `json:"display_name,omitempty"`    // 用户侧显示文本
+	Type          string `json:"type,omitempty"`            // linux/windows/fnos/other
+	Category      string `json:"category,omitempty"`        // 二级分类，当前用于 Linux 发行版和 Windows 版本
+	RootPassword  string `json:"root_password,omitempty"`   // 已废弃，保留兼容
+	TemplateUser  string `json:"template_user,omitempty"`   // 模板中的普通用户名
+	CloudInitMode string `json:"cloud_init_mode,omitempty"` // cloud-init 模式: "nocloud"或空字符串
 }
 
 // DeleteTemplateParams 删除模板参数

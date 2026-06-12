@@ -54,22 +54,34 @@
 
       <template v-if="form.type === 'linux'">
         <el-divider content-position="left" style="margin: 12px 0;">
-          模板凭据（SSH 初始化用）
+          Linux 模板配置
         </el-divider>
 
-        <el-form-item label="登录用户名">
-          <el-input v-model="form.template_user" placeholder="模板中的登录用户名" />
+        <el-form-item label="初始化方式">
+          <el-radio-group v-model="form.cloud_init_mode">
+            <el-radio value="nocloud">
+              <span>☁️ cloud-init（推荐）</span>
+            </el-radio>
+            <el-radio value="">
+              <span>🛠️ 仅离线初始化</span>
+            </el-radio>
+          </el-radio-group>
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
-            模板中用于 SSH 登录的用户名，克隆后可被重命名
+            <span v-if="form.cloud_init_mode === 'nocloud'">
+              模板内需预装 cloud-init，克隆时自动扩容磁盘、设置 hostname，无需 SSH 连接
+            </span>
+            <span v-else>
+              仅通过 virt-customize 离线设置 hostname/密码，磁盘扩容需手动处理
+            </span>
           </div>
         </el-form-item>
 
-        <el-form-item label="用户密码">
-          <el-input v-model="form.root_password" type="password" show-password placeholder="模板用户的登录密码" />
+        <el-form-item label="模板用户名">
+          <el-input v-model="form.template_user" placeholder="模板中已有的普通用户名" />
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
-            模板中该用户的密码，用于克隆后 SSH 登录执行初始化
+            克隆时若目标用户名与模板用户名不同，自动离线重命名
           </div>
         </el-form-item>
       </template>
@@ -109,7 +121,7 @@ const form = reactive({
   display_name: '',
   type: 'linux',
   category: DEFAULT_LINUX_TEMPLATE_CATEGORY,
-  root_password: '',
+  cloud_init_mode: 'nocloud',
   template_user: '',
 })
 
@@ -137,7 +149,7 @@ const open = (name) => {
   form.display_name = form.name
   form.type = 'linux'
   form.category = DEFAULT_LINUX_TEMPLATE_CATEGORY
-  form.root_password = ''
+  form.cloud_init_mode = 'nocloud'
   form.template_user = ''
   visible.value = true
 }
@@ -161,7 +173,7 @@ const handleSubmit = async () => {
       display_name: form.display_name || form.name,
       type: form.type,
       category: ['linux', 'windows'].includes(form.type) ? normalizeTemplateCategory(form.type, form.category) : undefined,
-      root_password: form.root_password || undefined,
+      cloud_init_mode: form.type === 'linux' ? (form.cloud_init_mode || undefined) : undefined,
       template_user: form.template_user || undefined,
     })
     ElMessage.success('制作模板任务已提交，请在任务中查看进度')

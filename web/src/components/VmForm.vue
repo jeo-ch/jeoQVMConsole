@@ -1318,25 +1318,20 @@
                     </el-form-item>
                     <el-row :gutter="20">
                       <el-col :span="12">
-                        <el-form-item label="原系统用户名">
+                        <el-form-item label="模板用户名">
                           <el-input v-model="form.template_user" placeholder="磁盘中已有的普通用户名" />
                         </el-form-item>
                       </el-col>
                       <el-col :span="12">
-                        <el-form-item label="原系统root密码">
-                          <el-input v-model="form.template_root_pass" placeholder="磁盘中的root密码（SSH连接用）" type="password" show-password />
+                        <el-form-item label="新用户名">
+                          <el-input v-model="form.import_user" placeholder="要重命名的目标用户名" />
                         </el-form-item>
                       </el-col>
                     </el-row>
                     <el-row :gutter="20">
                       <el-col :span="12">
-                        <el-form-item label="新用户名">
-                          <el-input v-model="form.import_user" placeholder="要创建的新用户名" />
-                        </el-form-item>
-                      </el-col>
-                      <el-col :span="12">
                         <el-form-item label="新密码">
-                          <el-input v-model="form.import_password" placeholder="新用户的密码" type="password" show-password />
+                          <el-input v-model="form.import_password" placeholder="离线设置的登录密码" type="password" show-password />
                         </el-form-item>
                       </el-col>
                     </el-row>
@@ -4758,7 +4753,6 @@ const submitForm = async () => {
             hostname: form.hostname || form.name,
             user: form.import_user,
             password: form.import_password,
-            template_root_pass: form.template_root_pass,
             template_user: form.template_user,
             autostart: form.autostart,
             freeze: form.freeze,
@@ -4873,7 +4867,6 @@ const submitForm = async () => {
               guest_agent: buildGuestAgentPayload(),
               smbios1: buildSMBIOS1Payload(),
               uefi: (form.boot_type === 'uefi' || form.boot_type === 'uefi-secure') ? true : undefined,
-              template_root_pass: form.template_root_pass,
               template_user: isWindowsTemplate.value ? windowsTemplateUsername : form.import_user.trim(),
               video_model: form.video_model,
               disk_bus: form.disk_bus,

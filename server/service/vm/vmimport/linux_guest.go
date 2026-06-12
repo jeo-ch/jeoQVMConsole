@@ -133,6 +133,23 @@ func importVMLinuxDefine(params *ImportVMParams, destDiskPath, format string, ra
 		return fmt.Errorf("定义虚拟机失败: %s", defineResult.Stderr)
 	}
 
+	// Linux 离线初始化：在 VM 定义后、启动前通过 virt-customize 完成
+	// 包括 machine-id 清理、cloud-init NoCloud seed 写入、密码修改等
+	if initType == "linux" {
+		linuxParams := &service.CloneParams{
+			Name:         params.Name,
+			Hostname:     params.Hostname,
+			User:         params.User,
+			Password:     params.Password,
+			TemplateUser: params.TemplateUser,
+		}
+		if err := service.PrepareLinuxCloneFirstBootIdentity(linuxParams, destDiskPath); err != nil {
+			_ = utils.ExecCommand("virsh", "undefine", params.Name, "--nvram")
+			_ = os.Remove(destDiskPath)
+			return fmt.Errorf("Linux 离线初始化失败: %w", err)
+		}
+	}
+
 	return importVMPostDefine(params.Name, srcDiskPath, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)
 }
 
@@ -263,6 +280,22 @@ func importDiskByPathLinuxDefine(params *ImportDiskByPathParams, destDiskPath, f
 	if defineResult.Error != nil {
 		_ = os.Remove(destDiskPath)
 		return fmt.Errorf("定义虚拟机失败: %s", defineResult.Stderr)
+	}
+
+	// Linux 离线初始化：在 VM 定义后、启动前通过 virt-customize 完成
+	if initType == "linux" {
+		linuxParams := &service.CloneParams{
+			Name:         params.Name,
+			Hostname:     params.Hostname,
+			User:         params.User,
+			Password:     params.Password,
+			TemplateUser: params.TemplateUser,
+		}
+		if err := service.PrepareLinuxCloneFirstBootIdentity(linuxParams, destDiskPath); err != nil {
+			_ = utils.ExecCommand("virsh", "undefine", params.Name, "--nvram")
+			_ = os.Remove(destDiskPath)
+			return fmt.Errorf("Linux 离线初始化失败: %w", err)
+		}
 	}
 
 	return importVMPostDefine(params.Name, mainDiskSrc, destDiskPath, params.CopyDisk, memoryMeta, params.Remark, params.Freeze, params.StartAfterImport)

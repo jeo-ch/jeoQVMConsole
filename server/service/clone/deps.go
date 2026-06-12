@@ -55,23 +55,23 @@ type Deps struct {
 	GetOVSLeaseIPByMAC            func(mac string) string
 
 	// ---- XML modification helpers ----
-	ApplyRTCConfigToDomainXML          func(xmlStr, offset, startDate, tplType string) (string, error)
-	ApplyVMAPICToDomainXML             func(xmlStr string, apic *bool) (string, error)
-	ApplyCPUTopologyModeToDomainXML    func(xmlStr, mode, tplType string, vcpu int) string
-	ApplyVMCPULimitToDomainXML         func(xmlStr string, vcpu, pct int) string
-	ApplyCPUAffinityIfSet              func(xmlStr string, vcpu int, affinity string) (string, error)
-	ApplyVPCSwitchToDomainXML          func(xmlStr string, switchID uint) (string, error)
+	ApplyRTCConfigToDomainXML           func(xmlStr, offset, startDate, tplType string) (string, error)
+	ApplyVMAPICToDomainXML              func(xmlStr string, apic *bool) (string, error)
+	ApplyCPUTopologyModeToDomainXML     func(xmlStr, mode, tplType string, vcpu int) string
+	ApplyVMCPULimitToDomainXML          func(xmlStr string, vcpu, pct int) string
+	ApplyCPUAffinityIfSet               func(xmlStr string, vcpu int, affinity string) (string, error)
+	ApplyVPCSwitchToDomainXML           func(xmlStr string, switchID uint) (string, error)
 	ApplyFirstBootRebootModeToDomainXML func(xmlStr, mode string) string
-	EffectiveTopologyVCPU              func(vcpu, maxVCPU int) int
+	EffectiveTopologyVCPU               func(vcpu, maxVCPU int) int
 	ShouldUseWindowsFirstBootColdReboot func(mode, tplType string) bool
 	CompleteWindowsFirstBootColdReboot  func(ctx context.Context, name string, progressFn func(int, string)) error
-	BuildVCPUTag                       func(vcpu, maxVCPU int) string
-	ResolveRTCOffset                   func(offset, tplType string) string
-	NormalizeRTCStartDate              func(s string) string
-	ParseRTCStartDateToEpoch           func(s string) (string, error)
-	VMRTCStartDateNow                  string
-	VMRTCOffsetAbsolute                string
-	InjectPCIERootPorts                func(xmlContent string, portCount int) string
+	BuildVCPUTag                        func(vcpu, maxVCPU int) string
+	ResolveRTCOffset                    func(offset, tplType string) string
+	NormalizeRTCStartDate               func(s string) string
+	ParseRTCStartDateToEpoch            func(s string) (string, error)
+	VMRTCStartDateNow                   string
+	VMRTCOffsetAbsolute                 string
+	InjectPCIERootPorts                 func(xmlContent string, portCount int) string
 
 	// ---- Disk / storage ----
 	AddExtraDisksForVM func(vmName string, extraDisks []disk.ExtraDiskParam, cloneDir, diskBus string, isAdmin bool, progressFn func(int, string)) error
@@ -89,12 +89,12 @@ type Deps struct {
 	DeleteVMSchedules             func(vmName string) error
 
 	// ---- CPU affinity ----
-	ParseCPUAffinity           func(input string) ([]int, error)
-	ValidateCPUAffinity        func(cores []int) error
+	ParseCPUAffinity            func(input string) ([]int, error)
+	ValidateCPUAffinity         func(cores []int) error
 	ApplyCPUAffinityToDomainXML func(xmlStr string, vcpu int, cores []int) string
 
 	// ---- Template boot type ----
-	ResolveTemplateBootType    func(templatePath, templateType, bootType string, bootVerified bool, detector func(string) string) (string, bool)
+	ResolveTemplateBootType func(templatePath, templateType, bootType string, bootVerified bool, detector func(string) string) (string, bool)
 
 	// ---- VM first boot ----
 	WaitForVMShutOff func(ctx context.Context, name string, timeout time.Duration) (bool, error)
@@ -104,8 +104,8 @@ type Deps struct {
 	GetVMDiskInfo func(name string) VMDiskInfoResult
 
 	// ---- Disk expansion ----
-	PrepareFnOSSystemDiskExpansion     func(ctx context.Context, cloneDisk string, progressFn func(int, string)) error
-	PrepareWindowsSystemDiskExpansion  func(ctx context.Context, cloneDisk string, progressFn func(int, string)) error
+	PrepareFnOSSystemDiskExpansion    func(ctx context.Context, cloneDisk string, progressFn func(int, string)) error
+	PrepareWindowsSystemDiskExpansion func(ctx context.Context, cloneDisk string, progressFn func(int, string)) error
 
 	// ---- Migration hook ----
 	HookEnsureVMNotMigrating func(vmName, action string) error
@@ -113,11 +113,12 @@ type Deps struct {
 
 // TemplateMeta mirrors service.TemplateMeta for use within the clone package.
 type TemplateMeta struct {
-	Type          string                `json:"type"`
-	BootType      string                `json:"boot_type"`
-	RootPassword  string                `json:"root_password"`
-	TemplateUser  string                `json:"template_user"`
-	NVRAMPath     string                `json:"nvram_path"`
+	Type          string                 `json:"type"`
+	BootType      string                 `json:"boot_type"`
+	RootPassword  string                 `json:"root_password"`   // 已废弃，保留兼容旧元数据
+	TemplateUser  string                 `json:"template_user"`   // 模板中的普通用户名（用于用户名重命名）
+	CloudInitMode string                 `json:"cloud_init_mode"` // cloud-init 模式: "nocloud"或空字符串
+	NVRAMPath     string                 `json:"nvram_path"`
 	DefaultConfig *TemplateDefaultConfig `json:"default_config,omitempty"`
 }
 

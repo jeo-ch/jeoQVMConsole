@@ -253,16 +253,9 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 	}
 
 	if cloneParams.TemplateType == "linux" {
-		progressFn(60, "等待虚拟机获取 IP...")
-		time.Sleep(5 * time.Second)
-		ip := WaitForIPWithContext(ctx, params.Name, LinuxCloneIPWaitSeconds)
-		if ip == "" {
-			return fmt.Errorf("未获取到虚拟机 IP，Linux 初始化无法执行")
-		}
-		progressFn(70, "正在执行 Linux SSH 初始化...")
-		if err := InitLinuxClone(cloneParams, ip, progressFn); err != nil {
-			logger.App.Warn("Linux SSH初始化失败", "error", err)
-		}
+		// Linux 已通过 prepareLinuxCloneFirstBootIdentity 完成全部离线初始化
+		// cloud-init 将在 VM 首次启动时自动处理 hostname 确认和磁盘扩容
+		progressFn(70, "Linux 离线初始化已完成，首次启动时 cloud-init 将自动扩容磁盘...")
 	}
 
 	progressFn(95, "正在更新虚拟机模板与凭据记录...")

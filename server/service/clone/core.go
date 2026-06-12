@@ -307,36 +307,13 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 		return nil, err
 	}
 
-	progressFn(60, "等待虚拟机启动...")
+	progressFn(60, "虚拟机启动中...")
 
-	// 等待获取 IP（可取消）
+	// 尝试获取 IP（可选，短时间等待）
+	// Linux/FnOS 已在克隆阶段完成离线初始化，无需 SSH
+	// cloud-init 将在 VM 首次启动时自动处理 hostname 确认和磁盘扩容
 	time.Sleep(5 * time.Second)
-	ip := WaitForIPWithContext(ctx, params.Name, LinuxCloneIPWaitSeconds)
-
-	// Linux 初始化（仅 linux 类型）
-	if tplType == "linux" {
-		if ip == "" {
-			return nil, fmt.Errorf("未获取到虚拟机 IP，Linux 初始化无法执行")
-		}
-		// 检查取消
-		if err := CheckCanceled(ctx, params.Name, cloneDisk); err != nil {
-			return nil, err
-		}
-		progressFn(70, "SSH 初始化中...")
-		if err := InitLinuxClone(params, ip, progressFn); err != nil {
-			logger.App.Warn("Linux SSH初始化失败", "error", err)
-		}
-
-		if !params.LinuxIdentityPrepared {
-			progressFn(96, "等待虚拟机网络刷新...")
-			oldIP := ip
-			time.Sleep(15 * time.Second)
-			newIP := ip_resolver.GetVMIP(params.Name, true)
-			if newIP != "" && newIP != oldIP {
-				ip = newIP
-			}
-		}
-	}
+	ip := WaitForIPWithContext(ctx, params.Name, 30) // 最多等待 30 秒，不阻塞主流程
 
 	progressFn(100, "克隆完成")
 

@@ -215,46 +215,12 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	network := config.GlobalConfig.DefaultNetwork
 	cleanImportDHCPLeases(params.Name, network)
 
-	// 根据初始化类型执行初始化（仅当启动了虚拟机时）
+	// Linux 已在 importDiskByPathLinuxDefine 里完成离线初始化，无需 SSH
+	// 尝试获取 IP（可选，短时间等待）
 	ip := ""
 	if params.StartAfterImport {
-		if initType == "linux" {
-			if err := service.CheckCanceled(ctx, params.Name, destDiskPath); err != nil {
-				return nil, err
-			}
-
-			progressFn(60, "等待虚拟机启动...")
-			time.Sleep(5 * time.Second)
-			ip = service.WaitForIPWithContext(ctx, params.Name, service.LinuxCloneIPWaitSeconds)
-
-			if ip == "" {
-				return nil, fmt.Errorf("未获取到虚拟机 IP，Linux 初始化无法执行")
-			}
-			progressFn(70, "SSH 初始化中...")
-
-			cloneParams := &service.CloneParams{
-				Name:             params.Name,
-				Hostname:         params.Hostname,
-				User:             params.User,
-				Password:         params.Password,
-				TemplateRootPass: params.TemplateRootPass,
-				TemplateUser:     params.TemplateUser,
-			}
-			if err := service.InitLinuxClone(cloneParams, ip, progressFn); err != nil {
-				return nil, err
-			}
-
-			progressFn(96, "等待虚拟机网络刷新...")
-			oldIP := ip
-			time.Sleep(15 * time.Second)
-			newIP := ip_resolver.GetVMIP(params.Name, true)
-			if newIP != "" && newIP != oldIP {
-				ip = newIP
-			}
-		} else if initType == "" || initType == "other" {
-			time.Sleep(5 * time.Second)
-			ip = ip_resolver.GetVMIP(params.Name, true)
-		}
+		time.Sleep(5 * time.Second)
+		ip = ip_resolver.GetVMIP(params.Name, true)
 	}
 
 	// 处理额外导入磁盘：逐个挂载到已创建的虚拟机

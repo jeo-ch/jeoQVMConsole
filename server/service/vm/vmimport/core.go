@@ -206,52 +206,11 @@ func importVMCopyDisk(ctx context.Context, srcDiskPath, destDiskPath, format str
 }
 
 // importVMInitByType runs the init-type-specific logic after VM creation
-func importVMInitByType(ctx context.Context, params *ImportVMParams, initType, destDiskPath string, progressFn func(int, string)) string {
-	ip := ""
-	if initType == "linux" {
-		// 检查取消
-		if err := service.CheckCanceled(ctx, params.Name, destDiskPath); err != nil {
-			return ""
-		}
-
-		progressFn(60, "等待虚拟机启动...")
-
-		// 等待获取 IP
-		time.Sleep(5 * time.Second)
-		ip = service.WaitForIPWithContext(ctx, params.Name, service.LinuxCloneIPWaitSeconds)
-
-		if ip == "" {
-			return ip
-		}
-		progressFn(70, "SSH 初始化中...")
-
-		// 构造 CloneParams 复用 InitLinuxClone
-		cloneParams := &service.CloneParams{
-			Name:             params.Name,
-			Hostname:         params.Hostname,
-			User:             params.User,
-			Password:         params.Password,
-			TemplateRootPass: params.TemplateRootPass,
-			TemplateUser:     params.TemplateUser,
-		}
-		if err := service.InitLinuxClone(cloneParams, ip, progressFn); err != nil {
-			return ip
-		}
-
-		// 等待网络刷新获取新 IP
-		progressFn(96, "等待虚拟机网络刷新...")
-		oldIP := ip
-		time.Sleep(15 * time.Second)
-		newIP := ip_resolver.GetVMIP(params.Name, true)
-		if newIP != "" && newIP != oldIP {
-			ip = newIP
-		}
-	} else if initType == "" || initType == "other" {
-		// 不做初始化，仅等待一会获取 IP
-		time.Sleep(5 * time.Second)
-		ip = ip_resolver.GetVMIP(params.Name, true)
-	}
-	return ip
+func importVMInitByType(_ context.Context, params *ImportVMParams, _ string, _ string, _ func(int, string)) string {
+	// Linux 已在 importVMLinuxDefine 里完成离线初始化，无需 SSH
+	// 尝试获取 IP（短时等待）
+	time.Sleep(5 * time.Second)
+	return ip_resolver.GetVMIP(params.Name, true)
 }
 
 // importVMPostDefine handles post-define steps shared by Windows and Linux import paths

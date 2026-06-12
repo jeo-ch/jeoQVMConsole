@@ -9,7 +9,6 @@ import (
 
 	"kvm_console/model"
 	clonepkg "kvm_console/service/clone"
-	"kvm_console/service/ip_resolver"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
@@ -220,28 +219,11 @@ func continueExistingLightweightVM(ctx context.Context, params *clonepkg.ClonePa
 	if err := clonepkg.CheckCanceled(ctx, params.Name, ""); err != nil {
 		return nil, err
 	}
-	progressFn(60, "等待虚拟机启动...")
+	progressFn(60, "虚拟机启动中...")
+	// Linux 已在 CloneVM 阶段通过 virt-customize 离线初始化
+	// cloud-init 将在首次启动后自动处理 hostname 确认和磁盘扩容
 	time.Sleep(5 * time.Second)
-	ip := clonepkg.WaitForIPWithContext(ctx, params.Name, clonepkg.LinuxCloneIPWaitSeconds)
-	tplType := strings.ToLower(strings.TrimSpace(params.TemplateType))
-	if tplType == "" {
-		tplType = "linux"
-	}
-	if tplType == "linux" {
-		if ip == "" {
-			return nil, fmt.Errorf("未获取到虚拟机 IP，Linux 初始化无法执行")
-		}
-		progressFn(70, "SSH 初始化中...")
-		if err := clonepkg.InitLinuxClone(params, ip, progressFn); err != nil {
-			return nil, err
-		}
-		progressFn(96, "等待虚拟机网络刷新...")
-		oldIP := ip
-		time.Sleep(15 * time.Second)
-		if newIP := ip_resolver.GetVMIP(params.Name, true); newIP != "" && newIP != oldIP {
-			ip = newIP
-		}
-	}
+	ip := clonepkg.WaitForIPWithContext(ctx, params.Name, 30)
 	diskPath := HookGetVMDiskPath(params.Name)
 	progressFn(100, "轻量云服务器初始化完成")
 	return &clonepkg.CloneResult{

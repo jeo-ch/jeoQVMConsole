@@ -28,6 +28,7 @@
 - 宿主机内存检查（创建虚拟机前校验可用内存）不新增 apt 依赖，通过读取 `/proc/meminfo` 的 `MemAvailable` 实现，回退使用 `free` 命令
 - 虚拟机强制删除（僵尸虚拟机清理）不新增 apt 依赖，复用已有 `virsh`、`systemctl` 和 `coreutils` 命令
 - 虚拟机删除磁盘容错（磁盘文件缺失时跳过快照清理）不新增 apt 依赖，通过 `test -f` 命令检查文件存在性
+- **Linux 克隆离线初始化（NoCloud 方案）**新增对 `libguestfs-tools`（`virt-customize`）的依赖；`virt-customize --password` 用于离线修改密码，加上 `cloud-init` NoCloud seed 文件注入取代旧版本的 SSH 在线初始化方案；模板内预装 `cloud-init` 可获得首次启动自动扩容能力
 
 ## 一键安装
 
