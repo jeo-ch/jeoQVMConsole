@@ -15,7 +15,7 @@ type VPCSwitch struct {
 	AllowMACChange             bool      `json:"allow_mac_change" gorm:"default:false"`
 	AllowForgedTransmits       bool      `json:"allow_forged_transmits" gorm:"default:false"`
 	VLANID                     int       `json:"vlan_id" gorm:"uniqueIndex;not null"`
-	CIDR                       string    `json:"cidr" gorm:"uniqueIndex;not null;size:32"`
+	CIDR                       string    `json:"cidr" gorm:"column:cidr;uniqueIndex;not null;size:32"`
 	GatewayIP                  string    `json:"gateway_ip" gorm:"not null;size:45"`
 	DHCPStart                  string    `json:"dhcp_start" gorm:"not null;size:45"`
 	DHCPEnd                    string    `json:"dhcp_end" gorm:"not null;size:45"`

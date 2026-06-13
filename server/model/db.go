@@ -252,17 +252,45 @@ func migrateVPCBindingUniqueIndex() {
 }
 
 // migrateVPCSwitchCIDRColumn 为旧版 vpc_switches 表补齐 cidr 列
-// GORM AutoMigrate 在 SQLite 上新增 NOT NULL + UNIQUE 列时可能静默失败，因此需要手动迁移
+// GORM 默认将 CIDR 映射为 c_id_r（连续大写字母被拆分为独立单词），
+// 旧版数据库中存在 c_id_r 列存储实际 CIDR 值，需迁移至显式指定的 cidr 列。
 func migrateVPCSwitchCIDRColumn(hadColumn bool) {
-	if DB == nil || hadColumn {
+	if DB == nil {
 		return
 	}
+
+	// Stage 0: 检查并修复 GORM 错误命名的 c_id_r 列 → cidr 列
+	hasOldColumn := DB.Migrator().HasColumn(&VPCSwitch{}, "c_id_r")
+	hasNewColumn := DB.Migrator().HasColumn(&VPCSwitch{}, "cidr")
+
+	if hasOldColumn && hasNewColumn {
+		// 将 c_id_r 中的数据迁移到 cidr（仅更新 cidr 为空的记录）
+		if err := DB.Exec("UPDATE vpc_switches SET cidr = c_id_r WHERE (cidr IS NULL OR cidr = '') AND c_id_r IS NOT NULL AND c_id_r <> ''").Error; err != nil {
+			logger.App.Warn("迁移 c_id_r → cidr 数据失败", "error", err)
+		} else {
+			logger.App.Info("已从 c_id_r 迁移数据到 cidr 列")
+		}
+		// 创建唯一索引（可能因之前迁移失败而缺失）
+		if err := DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_vpc_switches_cidr ON vpc_switches(cidr)").Error; err != nil {
+			logger.App.Warn("创建 vpc_switches.cidr 唯一索引失败", "error", err)
+		}
+		// 删除旧的无效索引（c_id_r 列上的索引，如果有的话）
+		DB.Exec("DROP INDEX IF EXISTS idx_vpc_switches_c_id_r")
+		return
+	}
+
+	if hadColumn {
+		return
+	}
+
 	logger.App.Info("开始迁移 vpc_switches.cidr 列")
 
 	// 1. 添加 cidr 列（暂不设 NOT NULL，避免与已有数据冲突）
-	if err := DB.Exec("ALTER TABLE vpc_switches ADD COLUMN cidr TEXT DEFAULT ''").Error; err != nil {
-		logger.App.Warn("添加 vpc_switches.cidr 列失败", "error", err)
-		return
+	if !hasNewColumn {
+		if err := DB.Exec("ALTER TABLE vpc_switches ADD COLUMN cidr TEXT DEFAULT ''").Error; err != nil {
+			logger.App.Warn("添加 vpc_switches.cidr 列失败", "error", err)
+			return
+		}
 	}
 
 	// 2. 收集已占用的 CIDR，避免冲突
