@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: backend_service
-title: QVMConsole 后端服务核心与运行时编排
-scope:
-    - server/
-source_files: []
-depends_on: []
-related_to:
-    - path: frontend_app
