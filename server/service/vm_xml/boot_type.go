@@ -171,25 +171,26 @@ func replaceOSOpenTagFirmware(osBlock string, useEFI bool) string {
 	})
 }
 
-func buildUEFIFirmwareXML(secure bool, loaderPath, varsTemplate, nvramPath string) string {
-	lines := []string{}
-	if secure {
-		lines = append(lines,
-			"    <firmware>",
-			"      <feature enabled='yes' name='enrolled-keys'/>",
-			"      <feature enabled='yes' name='secure-boot'/>",
-			"    </firmware>",
-		)
+// buildUEFIFirmwareFeatureXML 生成 UEFI 固件特性块（仅 <firmware> 特性声明），不包含 loader/nvram。
+// loader 与 nvram 由 libvirt 的 firmware='efi' 自动选择机制处理，显式写入会与自动选择冲突。
+func buildUEFIFirmwareFeatureXML(secure bool) string {
+	if !secure {
+		return ""
 	}
+	return `    <firmware>
+      <feature enabled='yes' name='enrolled-keys'/>
+      <feature enabled='yes' name='secure-boot'/>
+    </firmware>`
+}
+
+// buildUEFILoaderNVRAMXML 生成显式 loader 和 nvram 元素（不使用 firmware='efi' 自动选择时使用）。
+func buildUEFILoaderNVRAMXML(secure bool, loaderPath, varsTemplate, nvramPath string) string {
 	loaderAttrs := " readonly='yes' type='pflash'"
 	if secure {
 		loaderAttrs = " readonly='yes' secure='yes' type='pflash'"
 	}
-	lines = append(lines,
-		fmt.Sprintf("    <loader%s>%s</loader>", loaderAttrs, loaderPath),
-		fmt.Sprintf("    <nvram template='%s' templateFormat='raw' format='qcow2'>%s</nvram>", varsTemplate, nvramPath),
-	)
-	return strings.Join(lines, "\n")
+	return fmt.Sprintf("    <loader%s>%s</loader>\n    <nvram template='%s' templateFormat='raw' format='qcow2'>%s</nvram>",
+		loaderAttrs, loaderPath, varsTemplate, nvramPath)
 }
 
 func insertUEFIFirmwareXML(osBlock, firmwareXML string) string {
@@ -275,11 +276,10 @@ func ApplyVMBootTypeToDomainXML(name, xmlContent, bootType string) (string, erro
 	cleanedOS = replaceOSOpenTagFirmware(cleanedOS, normalized != VMBootTypeBIOS)
 
 	if normalized != VMBootTypeBIOS {
+		// 使用 firmware='efi' 自动选择模式时，只注入 <firmware> 特性块（用于声明 secure-boot 等需求），
+		// 不注入显式 loader/nvram，否则会与自动选择冲突导致 "Unable to find 'efi' firmware" 错误。
 		secure := normalized == VMBootTypeUEFISecure
-		nvramPath := resolveVMNVRAMPath(name, xmlContent)
-		loaderPath := resolveOVMFLoaderPath(secure)
-		varsTemplate := ResolveOVMFVarsTemplatePath(secure)
-		cleanedOS = insertUEFIFirmwareXML(cleanedOS, buildUEFIFirmwareXML(secure, loaderPath, varsTemplate, nvramPath))
+		cleanedOS = insertUEFIFirmwareXML(cleanedOS, buildUEFIFirmwareFeatureXML(secure))
 	}
 
 	updated := strings.Replace(xmlContent, osBlock, cleanedOS, 1)

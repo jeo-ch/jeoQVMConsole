@@ -155,16 +155,16 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	smmXML := ""
 	tpmXML := ""
 	if needUEFI {
+		// 使用 firmware='efi' 自动选择模式，只声明 secure-boot 等特性需求，
+		// 不注入显式 loader/nvram，否则会与自动选择冲突。
 		osXML = fmt.Sprintf(`  <os firmware='efi'>
     <type arch='x86_64' machine='pc-q35-noble'>hvm</type>
     <firmware>
       <feature enabled='yes' name='enrolled-keys'/>
       <feature enabled='yes' name='secure-boot'/>
     </firmware>
-    <loader readonly='yes' secure='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE_4M.ms.fd</loader>
-    <nvram template='/usr/share/OVMF/OVMF_VARS_4M.ms.fd' templateFormat='raw' format='qcow2'>%s</nvram>
     <boot dev='hd'/>
-  </os>`, nvramClone)
+  </os>`)
 		smmXML = "<smm state='on'/>"
 		tpmXML = "    <tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>\n"
 	}

@@ -52,8 +52,6 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
       <feature enabled='yes' name='enrolled-keys'/>
       <feature enabled='yes' name='secure-boot'/>
     </firmware>
-    <loader readonly='yes' secure='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE_4M.ms.fd</loader>
-    <nvram template='/usr/share/OVMF/OVMF_VARS_4M.ms.fd' templateFormat='raw' format='qcow2'>%s</nvram>
     <boot dev='hd'/>
   </os>
   <features>
@@ -89,7 +87,7 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), nvramClone, clockOpenTag, format, destDiskPath, service.BuildOVSInterfaceXML(macAddr, params.NicModel))
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), clockOpenTag, format, destDiskPath, service.BuildOVSInterfaceXML(macAddr, params.NicModel))
 
 	var err error
 	if memoryMeta != nil {
@@ -200,8 +198,6 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
       <feature enabled='yes' name='enrolled-keys'/>
       <feature enabled='yes' name='secure-boot'/>
     </firmware>
-    <loader readonly='yes' secure='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE_4M.ms.fd</loader>
-    <nvram template='/usr/share/OVMF/OVMF_VARS_4M.ms.fd' templateFormat='raw' format='qcow2'>%s</nvram>
     <boot dev='hd'/>
   </os>
   <features>
@@ -237,7 +233,7 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), nvramClone, clockOpenTag, format, destDiskPath, service.BuildOVSInterfaceXML(macAddr, params.NicModel))
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), clockOpenTag, format, destDiskPath, service.BuildOVSInterfaceXML(macAddr, params.NicModel))
 
 	var err error
 	if memoryMeta != nil {
