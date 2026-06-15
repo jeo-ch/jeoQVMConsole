@@ -145,22 +145,26 @@ func windowsDiskControllerXML(bus string) string {
 }
 
 // cloneWindows Windows 克隆逻辑
-func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, needUEFI bool, progressFn func(int, string)) error {
+func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, needUEFI bool, isNoInit bool, progressFn func(int, string)) error {
 	templateDir := config.GlobalConfig.TemplateDir
 
-	password := params.Password
-	if password == "" {
-		password = "Qwert333"
-	}
+	var isoPath string
+	var isoErr error
+	if !isNoInit {
+		password := params.Password
+		if password == "" {
+			password = "Qwert333"
+		}
 
-	// 注入 CloudbaseInit 配置文件（cloudbase-init.conf + Panther unattend.xml）
-	injectWindowsCloudbaseInitFiles(params.Name, cloneDisk, progressFn)
+		// 注入 CloudbaseInit 配置文件（cloudbase-init.conf + Panther unattend.xml）
+		injectWindowsCloudbaseInitFiles(params.Name, cloneDisk, progressFn)
 
-	// 创建 Config Drive ISO（包含实例 hostname、admin_pass、instance-id）
-	isoPath, isoErr := createWindowsConfigDriveISO(params.Name, params.Hostname, password)
-	if isoErr != nil {
-		logger.App.Warn("创建 Windows Config Drive ISO 失败，CloudbaseInit 将无法自动注入密码",
-			"vm", params.Name, "error", isoErr)
+		// 创建 Config Drive ISO（包含实例 hostname、admin_pass、instance-id）
+		isoPath, isoErr = createWindowsConfigDriveISO(params.Name, params.Hostname, password)
+		if isoErr != nil {
+			logger.App.Warn("创建 Windows Config Drive ISO 失败，CloudbaseInit 将无法自动注入密码",
+				"vm", params.Name, "error", isoErr)
+		}
 	}
 
 	nvramClone := ""
@@ -316,7 +320,7 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	}
 
 	// 将 Config Drive ISO 挂载为 SATA CD-ROM，供 CloudbaseInit 首次启动时读取
-	if isoPath != "" {
+	if !isNoInit && isoPath != "" {
 		vmXML = addConfigDriveCDROMToXML(vmXML, isoPath, diskBus)
 	}
 
@@ -357,7 +361,7 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	}
 
 	// 在后台等待 QEMU Guest Agent 连接后自动弹出并清理 Config Drive CD-ROM
-	if isoPath != "" {
+	if !isNoInit && isoPath != "" {
 		scheduleWindowsConfigDriveEject(params.Name, diskBus)
 	}
 

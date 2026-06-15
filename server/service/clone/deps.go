@@ -117,7 +117,7 @@ type TemplateMeta struct {
 	BootType      string                 `json:"boot_type"`
 	RootPassword  string                 `json:"root_password"`   // 已废弃，保留兼容旧元数据
 	TemplateUser  string                 `json:"template_user"`   // 模板中的普通用户名（用于用户名重命名）
-	CloudInitMode string                 `json:"cloud_init_mode"` // cloud-init 模式: "nocloud"或空字符串
+	CloudInitMode string                 `json:"cloud_init_mode"` // 初始化模式: "nocloud"/"configdrive"/"fnos"/"none"
 	NVRAMPath     string                 `json:"nvram_path"`
 	DefaultConfig *TemplateDefaultConfig `json:"default_config,omitempty"`
 }

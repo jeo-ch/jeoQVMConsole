@@ -16,11 +16,12 @@ func GetTemplateMetaForClone(templateName string) *clonepkg.TemplateMeta {
 		return nil
 	}
 	result := &clonepkg.TemplateMeta{
-		Type:         meta.Type,
-		BootType:     meta.BootType,
-		RootPassword: meta.RootPassword,
-		TemplateUser: meta.TemplateUser,
-		NVRAMPath:    meta.NVRAMPath,
+		Type:          meta.Type,
+		BootType:      meta.BootType,
+		RootPassword:  meta.RootPassword,
+		TemplateUser:  meta.TemplateUser,
+		CloudInitMode: meta.CloudInitMode,
+		NVRAMPath:     meta.NVRAMPath,
 	}
 	if meta.DefaultConfig != nil {
 		result.DefaultConfig = &clonepkg.TemplateDefaultConfig{

@@ -11,6 +11,7 @@ export const WINDOWS_TEMPLATE_CATEGORY_OPTIONS = [
   'WindowsServer2022',
   'Windows10',
   'WindowsServer2012R2',
+  '其它',
 ]
 
 export const normalizeTemplateType = (type) => (type || '').toString().trim().toLowerCase()
@@ -18,7 +19,6 @@ export const normalizeTemplateType = (type) => (type || '').toString().trim().to
 export const templateTypeLabel = (type) => ({
   windows: 'Windows',
   fnos: 'FnOS',
-  other: 'Other',
 }[normalizeTemplateType(type)] || 'Linux')
 
 export const normalizeTemplateCategory = (type, category) => {

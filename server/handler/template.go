@@ -42,13 +42,14 @@ func GetTemplateList(c *gin.Context) {
 
 // PrepareTemplateRequest 制作模板请求
 type PrepareTemplateRequest struct {
-	VMName       string `json:"vm_name" binding:"required"`
-	TemplateName string `json:"template_name" binding:"required"`
-	DisplayName  string `json:"display_name"`
-	Type         string `json:"type"`          // linux/windows/fnos/other
-	Category     string `json:"category"`      // 二级分类，当前用于 Linux 发行版和 Windows 版本
-	RootPassword string `json:"root_password"` // 模板 root 密码
-	TemplateUser string `json:"template_user"` // 模板中的普通用户名
+	VMName        string `json:"vm_name" binding:"required"`
+	TemplateName  string `json:"template_name" binding:"required"`
+	DisplayName   string `json:"display_name"`
+	Type          string `json:"type"`                      // linux/windows/fnos
+	Category      string `json:"category"`                  // 二级分类，当前用于 Linux 发行版和 Windows 版本
+	RootPassword  string `json:"root_password"`             // 模板 root 密码
+	TemplateUser  string `json:"template_user"`             // 模板中的普通用户名
+	CloudInitMode string `json:"cloud_init_mode,omitempty"` // 初始化模式: "nocloud"/"configdrive"/"fnos"/"none"
 }
 
 // PrepareTemplate 制作模板（异步任务）

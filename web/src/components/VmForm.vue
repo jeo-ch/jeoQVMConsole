@@ -755,7 +755,7 @@
                   </el-alert>
                 </div>
               </div>
-              <div v-else class="form-section-card">
+              <div v-else-if="!isNoInitTemplate" class="form-section-card">
                 <div class="form-section-card-header">
                   <el-icon><User /></el-icon>
                   <span>登录凭据</span>
@@ -792,6 +792,19 @@
                       <template #append><el-button @click="handleGenerateTemplatePassword">生成强密码</el-button></template>
                     </el-input>
                   </el-form-item>
+                </div>
+              </div>
+              <div v-else class="form-section-card">
+                <div class="form-section-card-header">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>初始化说明</span>
+                </div>
+                <div class="form-section-card-body">
+                  <el-alert type="info" :closable="false" show-icon>
+                    <template #title>
+                      该模板已设置为「不初始化」，克隆时将直接复制磁盘，不会注入用户名、密码和主机名。登录凭据需使用模板中已有的账号。
+                    </template>
+                  </el-alert>
                 </div>
               </div>
               <div v-if="isFnOSTemplate && !isLinkedCloneMode" class="form-section-card">
@@ -2353,7 +2366,7 @@ const allRequiredFilled = computed(() => {
     }
   } else if (isTemplateSourceMode.value) {
     if (!form.template || form.disk_size <= 0) return false
-    if (!registrationMode.value && !isLinkedCloneMode.value && (!form.import_user || (!form.import_password && form.batch_count <= 1))) return false
+    if (!registrationMode.value && !isLinkedCloneMode.value && !isNoInitTemplate.value && (!form.import_user || (!form.import_password && form.batch_count <= 1))) return false
     if (isFnOSTemplate.value && !isLinkedCloneMode.value && form.fnos_device_id_mode === 'custom' && !hasCustomFnOSDeviceID.value) return false
   }
   return true
@@ -2376,7 +2389,7 @@ const allRequiredTip = computed(() => {
   } else if (isTemplateSourceMode.value) {
     if (!form.template) missing.push('模板')
     if (form.disk_size <= 0) missing.push('磁盘大小')
-    if (!registrationMode.value && !isLinkedCloneMode.value) {
+    if (!registrationMode.value && !isLinkedCloneMode.value && !isNoInitTemplate.value) {
       if (!form.import_user) missing.push('用户名')
       if (!form.import_password && form.batch_count <= 1) missing.push('密码')
     }
@@ -2493,6 +2506,7 @@ const resolveTemplateDefaultFirstBootRebootMode = (tpl) => {
 }
 const isFnOSTemplate = computed(() => isTemplateSourceMode.value && form.template_type === 'fnos')
 const selectedTemplate = computed(() => templates.value.find(tpl => tpl.name === form.template) || null)
+const isNoInitTemplate = computed(() => isTemplateSourceMode.value && selectedTemplate.value?.cloud_init_mode === 'none')
 const templateMinDiskSize = computed(() => parseTemplateDiskSizeGB(selectedTemplate.value?.virtual_size))
 const windowsTemplateUsername = 'administrator'
 const isWindowsTemplate = computed(() => isTemplateSourceMode.value && form.template_type === 'windows')
@@ -3159,7 +3173,9 @@ const nextStep = async () => {
       fieldsToValidate.push('template', 'disk_size')
       if (!registrationMode.value && !isLinkedCloneMode.value) {
         fieldsToValidate.push('hostname')
-        fieldsToValidate.push('import_user', 'import_password')
+        if (!isNoInitTemplate.value) {
+          fieldsToValidate.push('import_user', 'import_password')
+        }
       } else if (registrationMode.value) {
         fieldsToValidate.push('hostname')
       }
@@ -3609,7 +3625,7 @@ const createRules = computed(() => {
     if (!isLinkedCloneMode.value || registrationMode.value) {
       base.hostname = [{ validator: validateTemplateHostname, trigger: 'blur' }]
     }
-    if (!registrationMode.value && !isLinkedCloneMode.value) {
+    if (!registrationMode.value && !isLinkedCloneMode.value && !isNoInitTemplate.value) {
       base.import_user = [{ validator: validateTemplateUsername, trigger: 'blur' }]
       base.import_password = [{ validator: validateTemplatePassword, trigger: 'blur' }]
     }

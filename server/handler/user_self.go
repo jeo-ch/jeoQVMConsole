@@ -257,7 +257,12 @@ func SelfCloneVm(c *gin.Context) {
 	}
 	req.User = service.NormalizeCloneUsernameForTemplate(templateType, req.User)
 
-	if err := service.ValidateCloneCredentialsForTemplate(templateType, req.Hostname, req.User, req.Password, true); err != nil {
+	cloudInitMode := ""
+	if meta != nil {
+		cloudInitMode = strings.ToLower(strings.TrimSpace(meta.CloudInitMode))
+	}
+	requireCredentials := cloudInitMode != "none"
+	if err := service.ValidateCloneCredentialsForTemplate(templateType, req.Hostname, req.User, req.Password, requireCredentials); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": err.Error(),

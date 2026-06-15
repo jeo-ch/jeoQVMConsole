@@ -12,7 +12,7 @@ type TemplateMeta struct {
 	BootType      string
 	RootPassword  string // 已废弃
 	TemplateUser  string
-	CloudInitMode string // cloud-init 模式: "nocloud"或空字符串
+	CloudInitMode string // 初始化模式: "nocloud"/"configdrive"/"fnos"/"none"
 	NVRAMPath     string
 	DefaultConfig *TemplateDefaultConfig
 }

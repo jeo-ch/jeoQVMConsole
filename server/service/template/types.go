@@ -43,6 +43,7 @@ var (
 		defaultWindowsTemplateCategory,
 		"Windows10",
 		"WindowsServer2012R2",
+		"其它",
 	}
 )
 
@@ -57,7 +58,7 @@ type TemplateMeta struct {
 	NVRAMPath     string                 `json:"nvram_path,omitempty"`      // UEFI 模板 NVRAM 变量文件
 	RootPassword  string                 `json:"root_password,omitempty"`   // 模板 root 密码（已废弃，保留兼容旧元数据）
 	TemplateUser  string                 `json:"template_user,omitempty"`   // 模板中的普通用户名（克隆时用于用户名重命名）
-	CloudInitMode string                 `json:"cloud_init_mode,omitempty"` // cloud-init 初始化模式: "nocloud"=支持 cloud-init，""=仅离线初始化
+	CloudInitMode string                 `json:"cloud_init_mode,omitempty"` // 初始化模式: "nocloud"=cloud-init, "configdrive"=Windows ConfigDrive, "fnos"=FnOS, "none"=不初始化
 	DefaultConfig *TemplateDefaultConfig `json:"default_config,omitempty"`  // 模板默认硬件配置
 	TemplateUID   string                 `json:"template_uid,omitempty"`    // 模板族唯一标识
 	NodeID        string                 `json:"node_id,omitempty"`         // 当前节点唯一标识
@@ -99,7 +100,7 @@ type TemplateInfo struct {
 	Path          string                 `json:"path"`                      // 完整路径
 	RootPassword  string                 `json:"root_password,omitempty"`   // 模板 root 密码（已废弃）
 	TemplateUser  string                 `json:"template_user,omitempty"`   // 模板中的普通用户名
-	CloudInitMode string                 `json:"cloud_init_mode,omitempty"` // cloud-init 初始化模式: "nocloud"=支持 cloud-init
+	CloudInitMode string                 `json:"cloud_init_mode,omitempty"` // 初始化模式: "nocloud"=cloud-init, "configdrive"=Windows ConfigDrive, "fnos"=FnOS
 	DefaultConfig *TemplateDefaultConfig `json:"default_config,omitempty"`
 	HasMeta       bool                   `json:"has_meta"`              // 是否有元数据文件
 	Exported      bool                   `json:"exported"`              // 是否存在导出文件
@@ -145,7 +146,7 @@ type PrepareTemplateParams struct {
 	Category      string `json:"category,omitempty"`        // 二级分类，当前用于 Linux 发行版和 Windows 版本
 	RootPassword  string `json:"root_password,omitempty"`   // 已废弃，保留兼容
 	TemplateUser  string `json:"template_user,omitempty"`   // 模板中的普通用户名
-	CloudInitMode string `json:"cloud_init_mode,omitempty"` // cloud-init 模式: "nocloud"或空字符串
+	CloudInitMode string `json:"cloud_init_mode,omitempty"` // 初始化模式: "nocloud"/"configdrive"/"fnos"/"none"
 }
 
 // DeleteTemplateParams 删除模板参数

@@ -68,6 +68,7 @@ func init() {
 			BootType:      meta.BootType,
 			RootPassword:  meta.RootPassword,
 			TemplateUser:  meta.TemplateUser,
+			CloudInitMode: meta.CloudInitMode,
 			NVRAMPath:     meta.NVRAMPath,
 			DefaultConfig: defaultConfig,
 		}

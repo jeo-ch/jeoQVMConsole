@@ -155,7 +155,12 @@ func CloneVm(c *gin.Context) {
 	}
 	req.User = clonepkg.NormalizeCloneUsernameForTemplate(templateType, req.User)
 
-	if err := clonepkg.ValidateCloneCredentialsForTemplate(templateType, req.Hostname, req.User, req.Password, true); err != nil {
+	cloudInitMode := ""
+	if meta != nil {
+		cloudInitMode = strings.ToLower(strings.TrimSpace(meta.CloudInitMode))
+	}
+	requireCredentials := cloudInitMode != "none"
+	if err := clonepkg.ValidateCloneCredentialsForTemplate(templateType, req.Hostname, req.User, req.Password, requireCredentials); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": err.Error(),

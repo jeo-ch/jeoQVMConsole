@@ -203,11 +203,13 @@ func ReinstallVM(ctx context.Context, params *ReinstallParams, progressFn func(i
 
 	switch cloneParams.TemplateType {
 	case "fnos":
-		if err := D.PrepareFnOSSystemDiskExpansion(ctx, systemDisk.Path, progressFn); err != nil {
-			return err
-		}
-		if err := cloneFnOS(cloneParams, systemDisk.Path, progressFn); err != nil {
-			return err
+		if meta.CloudInitMode != "none" {
+			if err := D.PrepareFnOSSystemDiskExpansion(ctx, systemDisk.Path, progressFn); err != nil {
+				return err
+			}
+			if err := cloneFnOS(cloneParams, systemDisk.Path, progressFn); err != nil {
+				return err
+			}
 		}
 	case "linux":
 		progressFn(25, "正在重置 Linux 首次启动身份...")

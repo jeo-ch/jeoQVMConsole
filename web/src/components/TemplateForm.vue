@@ -24,9 +24,6 @@
           <el-radio value="fnos">
             <span style="display: flex; align-items: center; gap: 4px;">📦 FnOS</span>
           </el-radio>
-          <el-radio value="other">
-            <span style="display: flex; align-items: center; gap: 4px;">💾 Other</span>
-          </el-radio>
         </el-radio-group>
       </el-form-item>
 
@@ -52,32 +49,57 @@
         </el-form-item>
       </template>
 
-      <template v-if="form.type === 'linux'">
+      <!-- 初始化方式：所有系统类型通用 -->
+      <template v-if="form.type !== 'other'">
         <el-divider content-position="left" style="margin: 12px 0;">
-          Linux 模板配置
+          {{ initDividerTitle }}
         </el-divider>
 
         <el-form-item label="初始化方式">
-          <el-radio-group v-model="form.cloud_init_mode">
-            <el-radio value="nocloud">
-              <span>☁️ cloud-init（推荐）</span>
-            </el-radio>
-            <el-radio value="">
-              <span>🛠️ 仅离线初始化</span>
-            </el-radio>
+          <el-radio-group v-model="form.init_mode" @change="onInitModeChange">
+            <template v-if="form.type === 'linux'">
+              <el-radio value="nocloud">
+                <span>☁️ cloud-init（推荐）</span>
+              </el-radio>
+              <el-radio value="none">
+                <span>🚫 不初始化</span>
+              </el-radio>
+            </template>
+            <template v-else-if="form.type === 'windows'">
+              <el-radio value="configdrive">
+                <span>🪟 ConfigDrive cloudbase-init（推荐）</span>
+              </el-radio>
+              <el-radio value="none">
+                <span>🚫 不初始化</span>
+              </el-radio>
+            </template>
+            <template v-else-if="form.type === 'fnos'">
+              <el-radio value="fnos">
+                <span>🛠️ virt-customize 离线初始化（推荐）</span>
+              </el-radio>
+              <el-radio value="none">
+                <span>🚫 不初始化</span>
+              </el-radio>
+            </template>
           </el-radio-group>
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
-            <span v-if="form.cloud_init_mode === 'nocloud'">
+            <span v-if="form.init_mode === 'nocloud'">
               模板内需预装 cloud-init，克隆时自动扩容磁盘、设置 hostname，无需 SSH 连接
             </span>
+            <span v-else-if="form.init_mode === 'configdrive'">
+              克隆时通过 ConfigDrive 注入 cloudbase-init 配置，自动设置密码和网络
+            </span>
+            <span v-else-if="form.init_mode === 'fnos'">
+              克隆时通过 virt-customize 注入用户名、密码、hostname、设备 ID 等 FnOS 首次启动配置
+            </span>
             <span v-else>
-              仅通过 virt-customize 离线设置 hostname/密码，磁盘扩容需手动处理
+              克隆时将直接完整复制模板磁盘，不做任何初始化操作
             </span>
           </div>
         </el-form-item>
 
-        <el-form-item label="模板用户名">
+        <el-form-item v-if="form.type === 'linux' && form.init_mode !== 'none'" label="模板用户名">
           <el-input v-model="form.template_user" placeholder="模板中已有的普通用户名" />
           <div class="form-tip">
             <el-icon><InfoFilled /></el-icon>
@@ -85,10 +107,6 @@
           </div>
         </el-form-item>
       </template>
-
-      <div v-if="form.type === 'other'" style="padding: 8px 12px; background: #fdf6ec; border-radius: 4px; font-size: 13px; color: #e6a23c; margin-bottom: 12px;">
-        💡 Other 类型克隆时将直接完整复制模板磁盘，不做任何初始化操作
-      </div>
     </el-form>
 
     <template #footer>
@@ -101,7 +119,7 @@
 <script setup>
 import { computed, ref, reactive, watch } from 'vue'
 import { prepareTemplate } from '@/api/vm'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   DEFAULT_LINUX_TEMPLATE_CATEGORY,
   DEFAULT_WINDOWS_TEMPLATE_CATEGORY,
@@ -121,13 +139,13 @@ const form = reactive({
   display_name: '',
   type: 'linux',
   category: DEFAULT_LINUX_TEMPLATE_CATEGORY,
-  cloud_init_mode: 'nocloud',
+  init_mode: 'nocloud',
   template_user: '',
 })
 
 const categoryOptions = computed(() => form.type === 'windows' ? WINDOWS_TEMPLATE_CATEGORY_OPTIONS : LINUX_TEMPLATE_CATEGORY_OPTIONS)
 const categoryPlaceholder = computed(() => form.type === 'windows'
-  ? '默认归入 WindowsServer2022，可选择 Windows10 / WindowsServer2012R2'
+  ? '默认归入 WindowsServer2022，可选择 Windows10 / WindowsServer2012R2 / 其它'
   : '默认归入 Ubuntu，可选择 Debian、CentOS')
 const categoryTip = computed(() => form.type === 'windows'
   ? 'Windows 模板按版本分类展示，2012 R2 会保留 BIOS/SATA 等默认配置用于克隆'
@@ -136,10 +154,13 @@ const categoryTip = computed(() => form.type === 'windows'
 watch(() => form.type, (type) => {
   if (type === 'windows') {
     form.category = normalizeTemplateCategory('windows', form.category || DEFAULT_WINDOWS_TEMPLATE_CATEGORY)
+    form.init_mode = 'configdrive'
   } else if (type === 'linux') {
     form.category = normalizeTemplateCategory('linux', form.category || DEFAULT_LINUX_TEMPLATE_CATEGORY)
-  } else {
+    form.init_mode = 'nocloud'
+  } else if (type === 'fnos') {
     form.category = ''
+    form.init_mode = 'fnos'
   }
 })
 
@@ -149,9 +170,51 @@ const open = (name) => {
   form.display_name = form.name
   form.type = 'linux'
   form.category = DEFAULT_LINUX_TEMPLATE_CATEGORY
-  form.cloud_init_mode = 'nocloud'
+  form.init_mode = 'nocloud'
   form.template_user = ''
   visible.value = true
+}
+
+const initDividerTitle = computed(() => {
+  if (form.type === 'linux') return 'Linux 模板配置'
+  if (form.type === 'windows') return 'Windows 模板配置'
+  if (form.type === 'fnos') return 'FnOS 模板配置'
+  return '模板配置'
+})
+
+const onInitModeChange = async (value) => {
+  if (value !== 'none') return
+  if (form.type === 'linux') {
+    try {
+      await ElMessageBox.confirm(
+        '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作（不会设置 hostname、不会扩容磁盘、不会注入密码），克隆出的虚拟机将完全保留模板的原始状态。\n\n请确保：\n1. 模板内已自行完成通用化处理（如删除 SSH 主机密钥、清理 machine-id 等）\n2. 模板磁盘大小已满足最终需求，后续不会自动扩容\n3. 你清楚克隆后需自行登录虚拟机进行个性化配置',
+        '⚠️ 风险确认：不初始化模板',
+        { confirmButtonText: '我已知晓风险，继续', cancelButtonText: '取消', type: 'warning', dangerouslyUseHTMLString: true }
+      )
+    } catch {
+      form.init_mode = form.type === 'windows' ? 'configdrive' : 'nocloud'
+    }
+  } else if (form.type === 'windows') {
+    try {
+      await ElMessageBox.confirm(
+        '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作（不会注入 ConfigDrive、不会设置密码、不会执行 cloudbase-init）。克隆出的虚拟机将完全保留模板的原始状态。\n\n<strong>⚠ 请在制作模板前务必对源虚拟机执行 sysprep 通用化：</strong>\n1. 运行 sysprep.exe 并勾选「通用」选项（/generalize）\n2. 关机后制作模板，确保 SID 和其他唯一标识已被清除\n3. 克隆后的 Windows 将在首次启动时重新进入 OOBE 初始化流程\n\n未通用化的 Windows 模板将导致克隆虚拟机出现 SID 冲突、域加入失败等问题。',
+        '⚠️ 风险确认：不初始化模板',
+        { confirmButtonText: '已通用化，继续', cancelButtonText: '取消', type: 'warning', dangerouslyUseHTMLString: true }
+      )
+    } catch {
+      form.init_mode = 'configdrive'
+    }
+  } else if (form.type === 'fnos') {
+    try {
+      await ElMessageBox.confirm(
+        '选择「不初始化」意味着克隆此模板时不会进行任何系统初始化操作。克隆出的虚拟机将完全保留模板的原始状态。\n\n请确保模板已完成必要的通用化处理。',
+        '⚠️ 风险确认：不初始化模板',
+        { confirmButtonText: '我已知晓风险，继续', cancelButtonText: '取消', type: 'warning' }
+      )
+    } catch {
+      form.init_mode = 'fnos'
+    }
+  }
 }
 
 const handleSubmit = async () => {
@@ -167,13 +230,14 @@ const handleSubmit = async () => {
 
   loading.value = true
   try {
+    const type = form.type
     await prepareTemplate({
       vm_name: vmName.value,
       template_name: form.name,
       display_name: form.display_name || form.name,
-      type: form.type,
-      category: ['linux', 'windows'].includes(form.type) ? normalizeTemplateCategory(form.type, form.category) : undefined,
-      cloud_init_mode: form.type === 'linux' ? (form.cloud_init_mode || undefined) : undefined,
+      type: type,
+      category: ['linux', 'windows'].includes(type) ? normalizeTemplateCategory(type, form.category) : undefined,
+      cloud_init_mode: form.init_mode === 'none' ? 'none' : (form.init_mode || undefined),
       template_user: form.template_user || undefined,
     })
     ElMessage.success('制作模板任务已提交，请在任务中查看进度')

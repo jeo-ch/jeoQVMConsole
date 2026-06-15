@@ -133,6 +133,7 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 	isWindows := tplType == "windows"
 	isFnOS := tplType == "fnos"
 	isOther := tplType == "other"
+	isNoInit := meta != nil && strings.ToLower(strings.TrimSpace(meta.CloudInitMode)) == "none"
 
 	// 克隆前存储空间预检查
 	if err := D.CheckStorageSpace(filepath.Dir(cloneDisk), int64(params.DiskSize)*1024+1024); err != nil {
@@ -193,12 +194,14 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 			_ = os.Remove(cloneDisk)
 			return nil, err
 		}
-		if err := cloneFnOS(params, cloneDisk, progressFn); err != nil {
-			_ = os.Remove(cloneDisk)
-			return nil, err
+		if !isNoInit {
+			if err := cloneFnOS(params, cloneDisk, progressFn); err != nil {
+				_ = os.Remove(cloneDisk)
+				return nil, err
+			}
 		}
 	}
-	if tplType == "linux" {
+	if tplType == "linux" && !isNoInit {
 		progressFn(25, "重置 Linux 首次启动身份...")
 		if err := prepareLinuxCloneFirstBootIdentity(params, cloneDisk); err != nil {
 			_ = os.Remove(cloneDisk)
@@ -254,7 +257,7 @@ func CloneVM(ctx context.Context, params *CloneParams, progressFn func(int, stri
 
 	if isWindows {
 		// ===== Windows 克隆 =====
-		if err := cloneWindows(ctx, params, cloneDisk, ramMB, memoryMeta, needUEFI, progressFn); err != nil {
+		if err := cloneWindows(ctx, params, cloneDisk, ramMB, memoryMeta, needUEFI, isNoInit, progressFn); err != nil {
 			_ = os.Remove(cloneDisk)
 			return nil, err
 		}

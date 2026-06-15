@@ -55,6 +55,7 @@ func buildTemplateTreeData() (*templateTreeData, error) {
 			NVRAMPath:     normalized.NVRAMPath,
 			RootPassword:  normalized.RootPassword,
 			TemplateUser:  normalized.TemplateUser,
+			CloudInitMode: normalized.CloudInitMode,
 			DefaultConfig: normalized.DefaultConfig,
 			HasMeta:       hasMeta,
 			Exported:      HasExportedTemplate(name),
