@@ -32,9 +32,19 @@ export function uploadStorageFile(category, formData, onProgress) {
     url: `/self/storage/upload/${category}`,
     method: 'post',
     data: formData,
-    headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 0, // 大文件上传不超时
+    maxContentLength: Infinity, // 不限制请求体大小
+    maxBodyLength: Infinity,    // 不限制请求体大小
     onUploadProgress: onProgress
+  })
+}
+
+// 大文件上传检测：查询服务器是否因 /tmp 空间不足启用了落盘模式
+export function checkLargeUpload(fileSize) {
+  return request({
+    url: '/self/storage/upload-check',
+    method: 'get',
+    params: { size: fileSize }
   })
 }
 
@@ -119,8 +129,9 @@ export function uploadDiskFile(formData, onProgress) {
     url: '/self/storage/upload/disk',
     method: 'post',
     data: formData,
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 0,
+    timeout: 0, // 大文件上传不超时
+    maxContentLength: Infinity, // 不限制请求体大小
+    maxBodyLength: Infinity,    // 不限制请求体大小
     onUploadProgress: onProgress
   })
 }

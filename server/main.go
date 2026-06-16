@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"kvm_console/config"
@@ -35,6 +36,10 @@ func main() {
 		}
 		return
 	}
+
+	// 避免 /tmp 为 tmpfs 时大文件上传因空间不足失败（tmpfs 通常仅几 GB）
+	// 优先使用环境变量 KVM_TMPDIR 指定的目录，否则回退到服务器工作目录下的 tmp 目录
+	ensureLargeTempDir()
 
 	// 初始化配置
 	config.Init()
@@ -1103,4 +1108,43 @@ func initCloneDeps() {
 		// Migration hook
 		HookEnsureVMNotMigrating: service.HookEnsureVMNotMigrating,
 	})
+}
+
+// ensureLargeTempDir 检测 /tmp 是否为 tmpfs 且空间有限，若是则将 TMPDIR 重定向到磁盘目录。
+// 避免大文件上传时因 Go multipart 解析将文件暂存到 tmpfs 导致空间不足。
+// 设置 KVM_TMPDIR 环境变量可强制指定临时目录。
+func ensureLargeTempDir() {
+	// 1. 优先使用环境变量 KVM_TMPDIR
+	if envDir := os.Getenv("KVM_TMPDIR"); envDir != "" {
+		if err := os.MkdirAll(envDir, 0755); err == nil {
+			os.Setenv("TMPDIR", envDir)
+			utils.SetLargeUploadDiskMode(true)
+			return
+		}
+	}
+
+	// 2. 仅在 /tmp 为 tmpfs 且总空间小于 20GB 时才需要重定向
+	//    （tmpfs 通常大小 = 物理内存一半，大文件上传极易耗尽）
+	if !utils.IsTmpOnTmpfs() {
+		return
+	}
+	tmpTotal := utils.GetTmpTotalBytes()
+	if tmpTotal > 0 && tmpTotal > 20*1024*1024*1024 { // > 20GB，空间充裕
+		return
+	}
+
+	// 3. 获取可执行文件所在目录作为回退
+	execPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	execDir := filepath.Dir(execPath)
+
+	// 4. 使用可执行文件同级的 tmp/multipart 目录
+	tmpDir := filepath.Join(execDir, "tmp", "multipart")
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return
+	}
+	os.Setenv("TMPDIR", tmpDir)
+	utils.SetLargeUploadDiskMode(true)
 }

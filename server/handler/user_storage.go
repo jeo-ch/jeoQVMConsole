@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -209,6 +210,12 @@ func UploadUserStorageFile(c *gin.Context) {
 			"message": "写入文件失败: " + err.Error(),
 		})
 		return
+	}
+
+	// 确保数据刷入物理磁盘后再返回响应（大文件尤为重要，避免前端以为完成实际还在缓存）
+	if syncErr := out.Sync(); syncErr != nil {
+		// Sync 失败不阻断流程，文件已写入但可能未完全落盘
+		fmt.Printf("[WARN] 文件 Sync 失败 %s: %v\n", destPath, syncErr)
 	}
 
 	// 设置文件权限（project quota 不依赖文件 owner，保持 libvirt-qemu:kvm 确保 VM 可访问）
@@ -676,5 +683,47 @@ func GetSelfStorageInfoForAdmin(c *gin.Context) {
 		"code":    200,
 		"message": "ok",
 		"data":    info,
+	})
+}
+
+// CheckLargeUpload 检测上传文件是否过大需要走落盘模式
+// GET /self/storage/upload-check?size=<bytes>
+func CheckLargeUpload(c *gin.Context) {
+	sizeStr := c.Query("size")
+	fileSize, err := strconv.ParseInt(sizeStr, 10, 64)
+	if err != nil || fileSize <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "请提供有效的文件大小参数 size（字节）",
+		})
+		return
+	}
+
+	// 如果未启用落盘模式（/tmp 不是 tmpfs 或空间充裕），无需提示
+	if !utils.IsLargeUploadDiskMode() {
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "ok",
+			"data": gin.H{
+				"large_upload": false,
+			},
+		})
+		return
+	}
+
+	// 落盘模式已启用，检测文件是否超过 /tmp 当前可用空间
+	tmpAvail := utils.GetTmpAvailableBytes()
+	isLarge := fileSize > tmpAvail
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "ok",
+		"data": gin.H{
+			"large_upload": isLarge,
+			"disk_mode":    true,
+			"tmp_avail":    tmpAvail,
+			"file_size":    fileSize,
+			"warning":      "由于文件较大，文件将实时改为落盘机制，上传速度可能会受限于磁盘写入速度。推荐在弱网环境下使用SFTP方式",
+		},
 	})
 }

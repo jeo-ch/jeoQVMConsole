@@ -80,3 +80,33 @@ func GetFileCreateTime(path string) int64 {
 	}
 	return ts
 }
+
+// TMPFS_MAGIC 是 Linux tmpfs 文件系统的魔数（来自 linux/magic.h）
+const TMPFS_MAGIC int64 = 0x01021994
+
+// IsTmpOnTmpfs 检测 /tmp 是否挂载为 tmpfs 文件系统
+func IsTmpOnTmpfs() bool {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs("/tmp", &stat); err != nil {
+		return false
+	}
+	return stat.Type == TMPFS_MAGIC
+}
+
+// GetTmpAvailableBytes 返回 /tmp 目录当前可用空间（字节）
+func GetTmpAvailableBytes() int64 {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs("/tmp", &stat); err != nil {
+		return 0
+	}
+	return int64(stat.Bavail) * int64(stat.Bsize)
+}
+
+// GetTmpTotalBytes 返回 /tmp 目录总空间（字节）
+func GetTmpTotalBytes() int64 {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs("/tmp", &stat); err != nil {
+		return 0
+	}
+	return int64(stat.Blocks) * int64(stat.Bsize)
+}

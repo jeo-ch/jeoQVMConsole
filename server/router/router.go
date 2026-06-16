@@ -427,6 +427,7 @@ func Setup() *gin.Engine {
 				self.POST("/storage/init", middleware.ElasticCloudOnlyMiddleware(), handler.InitUserStorageHandler)                         // 初始化存储池
 				self.GET("/storage/files/:category", middleware.ElasticCloudOnlyMiddleware(), handler.ListUserStorageFiles)                 // 列出文件
 				self.POST("/storage/upload/:category", middleware.ElasticCloudOnlyMiddleware(), handler.UploadUserStorageFile)              // 上传文件
+				self.GET("/storage/upload-check", middleware.ElasticCloudOnlyMiddleware(), handler.CheckLargeUpload)                        // 大文件上传检测
 				self.DELETE("/storage/file/:category/:filename", middleware.ElasticCloudOnlyMiddleware(), handler.DeleteUserStorageFile)    // 删除文件
 				self.GET("/storage/download/:category/:filename", middleware.ElasticCloudOnlyMiddleware(), handler.DownloadUserStorageFile) // 下载文件
 				self.GET("/storage/isos", middleware.ElasticCloudOnlyMiddleware(), handler.GetUserISOsForVM)                                // 用户ISO列表（VM创建用）

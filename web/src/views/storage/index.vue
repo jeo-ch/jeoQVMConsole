@@ -171,7 +171,11 @@
     <el-dialog v-model="uploadDialogVisible" title="上传文件" width="450px" :close-on-click-modal="false" append-to-body>
       <div v-if="uploadingFile" style="text-align: center;">
         <p style="margin-bottom: 12px;">{{ uploadingFile.name }}</p>
-        <el-progress :percentage="uploadProgress" :status="uploadProgress >= 100 ? 'success' : ''" />
+        <el-progress :percentage="uploadProgress" :status="uploadProgress >= 100 && uploadStatus !== 'writing' ? 'success' : ''" />
+        <p v-if="uploadStatus === 'writing'" style="margin-top: 12px; color: var(--el-color-warning);">
+          <el-icon style="vertical-align: middle;"><Loading /></el-icon>
+          正在写入物理磁盘，请稍等...
+        </p>
       </div>
     </el-dialog>
 
@@ -234,9 +238,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getStorageInfo, initStorage, getStorageFiles, uploadStorageFile, deleteStorageFile, getStorageDownloadUrl, mountStorage, unmountStorage, getUserMounts } from '@/api/storage'
+import { getStorageInfo, initStorage, getStorageFiles, uploadStorageFile, deleteStorageFile, getStorageDownloadUrl, mountStorage, unmountStorage, getUserMounts, checkLargeUpload } from '@/api/storage'
 import { getSelfVMs } from '@/api/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
 import { copyTextWithFallback } from '@/utils/clipboard'
 
 // 存储池信息
@@ -266,6 +271,7 @@ const filesLoading = ref(false)
 const uploadDialogVisible = ref(false)
 const uploadingFile = ref(null)
 const uploadProgress = ref(0)
+const uploadStatus = ref('uploading') // 'uploading' | 'writing'
 
 // 挂载
 const mountDialogVisible = ref(false)
@@ -380,8 +386,27 @@ const handleUpload = async (uploadFile, category) => {
     // 预检查失败不阻止上传，由后端兜底
   }
 
+  // 大文件落盘检测：如果服务器因 /tmp 为 tmpfs 启用了落盘模式，提示用户上传速度可能受限
+  try {
+    const checkRes = await checkLargeUpload(file.size)
+    const checkData = checkRes.data || {}
+    if (checkData.large_upload) {
+      await ElMessageBox.confirm(
+        checkData.warning || '由于文件较大，文件将实时改为落盘机制，上传速度可能会受限于磁盘写入速度。推荐在弱网环境下使用SFTP方式',
+        '大文件上传提示',
+        { confirmButtonText: '继续上传', cancelButtonText: '取消', type: 'warning' }
+      )
+    }
+  } catch (err) {
+    // 用户取消或 check API 失败时继续上传（失败不阻止）
+    if (err === 'cancel' || err === 'close') {
+      return
+    }
+  }
+
   uploadingFile.value = file
   uploadProgress.value = 0
+  uploadStatus.value = 'uploading'
   uploadDialogVisible.value = true
 
   const formData = new FormData()
@@ -391,6 +416,10 @@ const handleUpload = async (uploadFile, category) => {
     await uploadStorageFile(category, formData, (e) => {
       if (e.total > 0) {
         uploadProgress.value = Math.round((e.loaded / e.total) * 100)
+        // 上传字节完成后，后端正在 io.Copy + Sync 刷盘，切换为写入状态
+        if (e.loaded >= e.total) {
+          uploadStatus.value = 'writing'
+        }
       }
     })
     ElMessage.success('文件上传成功')

@@ -335,8 +335,9 @@ export function importTemplate(formData, onUploadProgress) {
     url: '/template/import',
     method: 'post',
     data: formData,
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 0,
+    timeout: 0, // 大文件上传不超时
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
     onUploadProgress
   })
 }
@@ -347,8 +348,9 @@ export function previewImportTemplate(formData, onUploadProgress) {
     url: '/template/import/preview',
     method: 'post',
     data: formData,
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 0,
+    timeout: 0, // 大文件上传不超时
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
     onUploadProgress
   })
 }

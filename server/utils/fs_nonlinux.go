@@ -18,3 +18,18 @@ func GetDiskSpace(path string) (total, used, available int64, err error) {
 func GetFileCreateTime(path string) int64 {
 	return 0
 }
+
+// IsTmpOnTmpfs stub for non-linux platforms.
+func IsTmpOnTmpfs() bool {
+	return false
+}
+
+// GetTmpAvailableBytes stub for non-linux platforms.
+func GetTmpAvailableBytes() int64 {
+	return 0
+}
+
+// GetTmpTotalBytes stub for non-linux platforms.
+func GetTmpTotalBytes() int64 {
+	return 0
+}

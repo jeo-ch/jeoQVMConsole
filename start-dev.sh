@@ -87,6 +87,10 @@ echo ""
 #                       示例: 终端只看warn以上 → "warn"
 export KVM_LOG_CONSOLE_TYPES=""
 export KVM_LOG_CONSOLE_LEVEL="warn"
+# KVM_TMPDIR           临时文件目录（multipart 上传暂存），留空则自动使用服务器 tmp 目录
+#                       如果 /tmp 是 tmpfs 建议设置此变量到磁盘目录，避免大文件上传时空间不足
+#                       示例: export KVM_TMPDIR=/opt/project/QVMConsole/server/tmp
+#export KVM_TMPDIR="${KVM_TMPDIR:-}"
 # ====================================================
 
 info "启动后端 (air 热重载)..."

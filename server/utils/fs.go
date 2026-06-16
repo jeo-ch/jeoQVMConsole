@@ -138,3 +138,19 @@ func IsFileImmutable(path string) bool {
 	// i 表示 immutable
 	return strings.Contains(result.Stdout, "-i-") || strings.Contains(result.Stdout, "----i")
 }
+
+// ==================== 大文件上传落盘模式 ====================
+
+// largeUploadDiskMode 标记当前是否启用了大文件上传落盘模式
+// 当 /tmp 为 tmpfs 且空间有限时，Go multipart 解析的临时目录会被重定向到磁盘
+var largeUploadDiskMode bool
+
+// SetLargeUploadDiskMode 设置大文件上传落盘模式标记
+func SetLargeUploadDiskMode(v bool) {
+	largeUploadDiskMode = v
+}
+
+// IsLargeUploadDiskMode 返回当前是否处于大文件上传落盘模式
+func IsLargeUploadDiskMode() bool {
+	return largeUploadDiskMode
+}
