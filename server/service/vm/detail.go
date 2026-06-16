@@ -241,6 +241,7 @@ func GetVMDiskInfo(name string) DiskInfoResult {
 			parts := strings.Split(backing, "/")
 			templateFile := parts[len(parts)-1]
 			info.Template = strings.TrimSuffix(templateFile, ".qcow2")
+			info.HasBackingFile = true
 		}
 	}
 
@@ -253,6 +254,7 @@ func GetVMDiskInfo(name string) DiskInfoResult {
 				parts := strings.Split(backing, "/")
 				templateFile := parts[len(parts)-1]
 				info.Template = strings.TrimSuffix(templateFile, ".qcow2")
+				info.HasBackingFile = true
 			}
 		}
 	}

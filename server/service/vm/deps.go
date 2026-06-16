@@ -89,7 +89,8 @@ type Deps struct {
 	ListPublicIPAttachmentsForVM func(vmName string) []PublicIPAttachment
 
 	// ---- Template ----
-	GetTemplateMeta func(templateName string) *TemplateMeta
+	GetTemplateMeta       func(templateName string) *TemplateMeta
+	WriteVMTemplateSource func(vmName, template, cloneMode string) error
 
 	// ---- Resource check ----
 	CheckDirWritable  func(dir string) error

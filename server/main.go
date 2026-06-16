@@ -187,6 +187,19 @@ func registerTaskHandlers() {
 		return string(resultJSON), nil
 	})
 
+	// 转为独立虚拟机任务（脱离链式克隆 backing chain）
+	taskqueue.RegisterHandler(model.TaskTypeMakeVMIndependent, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
+		params, err := service.ParseMakeVMIndependentParams(task.Params)
+		if err != nil {
+			return "", fmt.Errorf("解析参数失败: %w", err)
+		}
+		if err := service.MakeVMIndependent(ctx, params, progress); err != nil {
+			return "", err
+		}
+		refreshVMCacheAfterTask(params.VMName)
+		return `{"status":"ok"}`, nil
+	})
+
 	// 批量克隆任务（支持取消）
 	taskqueue.RegisterHandler(model.TaskTypeBatch, func(ctx context.Context, task *model.Task, progress func(int, string)) (string, error) {
 		params, err := service.ParseBatchCloneParams(task.Params)

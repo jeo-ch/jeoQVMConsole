@@ -248,6 +248,7 @@
                               <el-dropdown-item v-if="!isLightweight" command="network" :disabled="isMigrating(row)">网络管理</el-dropdown-item>
                               <el-dropdown-item v-if="!isLightweight" command="reinstall" :disabled="isMigrating(row)">重装系统</el-dropdown-item>
                               <el-dropdown-item v-if="isAdmin" command="migrate" :disabled="isMigrating(row)">迁移</el-dropdown-item>
+                              <el-dropdown-item v-if="isAdmin && row.is_linked_clone" command="make_independent" divided :disabled="isMigrating(row) || row.status !== 'shut off'">转为独立虚拟机</el-dropdown-item>
                               <el-dropdown-item command="snapshot" :disabled="isMigrating(row)">快照管理</el-dropdown-item>
                               <el-dropdown-item divided :command="row.in_rescue ? 'rescue_stop' : 'rescue_start'" :disabled="isMigrating(row)">
                                 <span :style="{ color: row.in_rescue ? '#E6A23C' : '#409EFF' }">{{ row.in_rescue ? '关闭救援系统' : '启动救援系统' }}</span>
@@ -400,6 +401,7 @@
                             <el-dropdown-item v-if="!isLightweight" command="network" :disabled="isMigrating(row)">网络管理</el-dropdown-item>
                             <el-dropdown-item v-if="!isLightweight" command="reinstall" :disabled="isMigrating(row)">重装系统</el-dropdown-item>
                             <el-dropdown-item v-if="isAdmin" command="migrate" :disabled="isMigrating(row)">迁移</el-dropdown-item>
+                            <el-dropdown-item v-if="isAdmin && row.is_linked_clone" command="make_independent" divided :disabled="isMigrating(row) || row.status !== 'shut off'">转为独立虚拟机</el-dropdown-item>
                             <el-dropdown-item command="snapshot" :disabled="isMigrating(row)">快照管理</el-dropdown-item>
                             <el-dropdown-item divided :command="row.in_rescue ? 'rescue_stop' : 'rescue_start'" :disabled="isMigrating(row)">
                               <span :style="{ color: row.in_rescue ? '#E6A23C' : '#409EFF' }">{{ row.in_rescue ? '关闭救援系统' : '启动救援系统' }}</span>
@@ -522,6 +524,7 @@
                         <el-dropdown-item v-if="!isLightweight" command="network" :disabled="isMigrating(row)">网络管理</el-dropdown-item>
                         <el-dropdown-item v-if="!isLightweight" command="reinstall" :disabled="isMigrating(row)">重装系统</el-dropdown-item>
                         <el-dropdown-item v-if="isAdmin" command="migrate" :disabled="isMigrating(row)">迁移</el-dropdown-item>
+                        <el-dropdown-item v-if="isAdmin && row.is_linked_clone" command="make_independent" divided :disabled="isMigrating(row) || row.status !== 'shut off'">转为独立虚拟机</el-dropdown-item>
                         <el-dropdown-item command="snapshot" :disabled="isMigrating(row)">快照管理</el-dropdown-item>
                         <el-dropdown-item divided :command="row.in_rescue ? 'rescue_stop' : 'rescue_start'" :disabled="isMigrating(row)">
                           <span :style="{ color: row.in_rescue ? '#E6A23C' : '#409EFF' }">{{ row.in_rescue ? '关闭救援系统' : '启动救援系统' }}</span>
@@ -650,6 +653,7 @@
                             <el-dropdown-item v-if="!isLightweight" command="network" :disabled="isMigrating(row)">网络管理</el-dropdown-item>
                             <el-dropdown-item v-if="!isLightweight" command="reinstall" :disabled="isMigrating(row)">重装系统</el-dropdown-item>
                             <el-dropdown-item v-if="isAdmin" command="migrate" :disabled="isMigrating(row)">迁移</el-dropdown-item>
+                            <el-dropdown-item v-if="isAdmin && row.is_linked_clone" command="make_independent" divided :disabled="isMigrating(row) || row.status !== 'shut off'">转为独立虚拟机</el-dropdown-item>
                             <el-dropdown-item command="snapshot" :disabled="isMigrating(row)">快照管理</el-dropdown-item>
                             <el-dropdown-item divided :command="row.in_rescue ? 'rescue_stop' : 'rescue_start'" :disabled="isMigrating(row)">
                               <span :style="{ color: row.in_rescue ? '#E6A23C' : '#409EFF' }">{{ row.in_rescue ? '关闭救援系统' : '启动救援系统' }}</span>
@@ -843,6 +847,7 @@
                   <el-dropdown-item v-if="!isLightweight" command="network" :disabled="isMigrating(row)">网络管理</el-dropdown-item>
                   <el-dropdown-item v-if="!isLightweight" command="reinstall" :disabled="isMigrating(row)">重装系统</el-dropdown-item>
                   <el-dropdown-item v-if="isAdmin" command="migrate" :disabled="isMigrating(row)">迁移</el-dropdown-item>
+                  <el-dropdown-item v-if="isAdmin && row.is_linked_clone" command="make_independent" divided :disabled="isMigrating(row) || row.status !== 'shut off'">转为独立虚拟机</el-dropdown-item>
                   <el-dropdown-item command="snapshot" :disabled="isMigrating(row)">快照管理</el-dropdown-item>
                   <el-dropdown-item divided :command="row.in_rescue ? 'rescue_stop' : 'rescue_start'" :disabled="isMigrating(row)">
                     <span :style="{ color: row.in_rescue ? '#E6A23C' : '#409EFF' }">
@@ -967,6 +972,7 @@
                       <el-dropdown-item v-if="!isLightweight" command="network" :disabled="isMigrating(row)">网络管理</el-dropdown-item>
                       <el-dropdown-item v-if="!isLightweight" command="reinstall" :disabled="isMigrating(row)">重装系统</el-dropdown-item>
                       <el-dropdown-item v-if="isAdmin" command="migrate" :disabled="isMigrating(row)">迁移</el-dropdown-item>
+                      <el-dropdown-item v-if="isAdmin && row.is_linked_clone" command="make_independent" divided :disabled="isMigrating(row) || row.status !== 'shut off'">转为独立虚拟机</el-dropdown-item>
                       <el-dropdown-item command="snapshot" :disabled="isMigrating(row)">快照管理</el-dropdown-item>
                       <el-dropdown-item divided :command="row.in_rescue ? 'rescue_stop' : 'rescue_start'" :disabled="isMigrating(row)">
                         <span :style="{ color: row.in_rescue ? '#E6A23C' : '#409EFF' }">{{ row.in_rescue ? '关闭救援系统' : '启动救援系统' }}</span>
@@ -1045,7 +1051,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'
-import { getDiskList, getVmIP, getVmList, operateVm, rescueVm, lockVm, unlockVm } from '@/api/vm'
+import { getDiskList, getVmIP, getVmList, operateVm, rescueVm, lockVm, unlockVm, makeVMIndependent } from '@/api/vm'
 import { getSelfVMs, getSelfLightweightVmRegistrations, confirmSelfLightweightVmRegistration } from '@/api/user'
 import { getUserInfo } from '@/api/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -1881,7 +1887,7 @@ const handleMore = async (command, row) => {
     ElMessage.warning('虚拟机正在迁移中，暂不能执行操作')
     return
   }
-  if (isLightweight.value && ['delete', 'export', 'network', 'template', 'reinstall', 'lock', 'unlock'].includes(command)) {
+  if (isLightweight.value && ['delete', 'export', 'network', 'template', 'reinstall', 'lock', 'unlock', 'make_independent'].includes(command)) {
     return
   }
   if (command === 'delete') {
@@ -1951,6 +1957,23 @@ const handleMore = async (command, row) => {
       row.locked = false
     } catch {
       // 取消确认或 API 错误（428 二次验证由拦截器处理）
+    }
+  } else if (command === 'make_independent') {
+    try {
+      await ElMessageBox.confirm(
+        `确定要将虚拟机 "${row.name}" 转为独立虚拟机吗？\n\n⚠️ 操作说明：\n1. 虚拟机必须处于关机状态\n2. 将通过 qemu-img convert 将模板 backing chain 合并为独立磁盘镜像\n3. 操作完成后虚拟机将脱离链式克隆关系，不再依赖原始模板\n4. 此操作需要较长时间，请在任务中心查看进度`,
+        '转为独立虚拟机',
+        {
+          confirmButtonText: '确定转换',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      )
+      const res = await makeVMIndependent(row.name)
+      ElMessage.success(res.message || '转为独立虚拟机任务已提交')
+      row.is_linked_clone = false
+    } catch {
+      // 取消确认或 API 错误
     }
   }
 }

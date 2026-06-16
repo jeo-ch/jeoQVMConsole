@@ -53,12 +53,13 @@ type VmInfo struct {
 	MemoryCompatMode         string               `json:"memory_compat_mode"`
 	MemoryBalloonSupported   bool                 `json:"memory_balloon_supported"`
 	MemoryBalloonStatus      string               `json:"memory_balloon_status"`
-	CreatedAt                string               `json:"created_at"`    // 创建时间
-	BandwidthIn              int                  `json:"bandwidth_in"`  // 下行平峰速率 Mbps
-	BandwidthOut             int                  `json:"bandwidth_out"` // 上行平峰速率 Mbps
-	PublicIPs                []PublicIPAttachment `json:"public_ips"`    // 已绑定公网 IP
-	InRescue                 bool                 `json:"in_rescue"`     // 是否处于救援模式
-	Locked                   bool                 `json:"locked"`        // 是否已锁定
+	CreatedAt                string               `json:"created_at"`      // 创建时间
+	BandwidthIn              int                  `json:"bandwidth_in"`    // 下行平峰速率 Mbps
+	BandwidthOut             int                  `json:"bandwidth_out"`   // 上行平峰速率 Mbps
+	PublicIPs                []PublicIPAttachment `json:"public_ips"`      // 已绑定公网 IP
+	InRescue                 bool                 `json:"in_rescue"`       // 是否处于救援模式
+	Locked                   bool                 `json:"locked"`          // 是否已锁定
+	IsLinkedClone            bool                 `json:"is_linked_clone"` // 是否为链式克隆（有backing file）
 	ContinuousRuntimeSeconds int64                `json:"continuous_runtime_seconds"`
 	ContinuousRunningSince   string               `json:"continuous_running_since"`
 }
@@ -216,10 +217,11 @@ type domainGraphics struct {
 
 // DiskInfoResult holds VM disk info for cross-package use
 type DiskInfoResult struct {
-	Device   string
-	Path     string
-	Size     string
-	Template string
+	Device         string
+	Path           string
+	Size           string
+	Template       string
+	HasBackingFile bool
 }
 
 // NetInfoResult holds VM network info for cross-package use

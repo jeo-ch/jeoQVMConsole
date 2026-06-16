@@ -116,18 +116,19 @@ func listCachedVMs(username string, limitOwner bool, options ...VMListOptions) (
 
 func vmInfoFromCacheRecord(record model.VMCache, options VMListOptions) VmInfo {
 	vm := VmInfo{
-		Name:      record.Name,
-		Remark:    record.Remark,
-		Group:     record.GroupName,
-		Status:    record.Status,
-		VCPU:      record.VCPU,
-		Memory:    record.MemoryMB,
-		MaxMemory: record.MaxMemoryMB,
-		DiskSize:  record.DiskSizeText,
-		Template:  record.Template,
-		Autostart: record.Autostart,
-		CreatedAt: record.CreatedAtText,
-		InRescue:  record.InRescue,
+		Name:          record.Name,
+		Remark:        record.Remark,
+		Group:         record.GroupName,
+		Status:        record.Status,
+		VCPU:          record.VCPU,
+		Memory:        record.MemoryMB,
+		MaxMemory:     record.MaxMemoryMB,
+		DiskSize:      record.DiskSizeText,
+		Template:      record.Template,
+		Autostart:     record.Autostart,
+		CreatedAt:     record.CreatedAtText,
+		InRescue:      record.InRescue,
+		IsLinkedClone: record.Template != "",
 	}
 
 	if options.IncludeIP {

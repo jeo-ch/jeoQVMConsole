@@ -210,6 +210,9 @@ func Setup() *gin.Engine {
 				vm.POST("/:name/rescue", handler.RescueVm)
 				vm.POST("/:name/password/reset", handler.ResetLinuxPassword)
 
+				// 转为独立虚拟机（仅管理员）
+				vm.POST("/:name/make-independent", middleware.ElasticCloudOnlyMiddleware(), middleware.AdminMiddleware(), handler.MakeVMIndependent)
+
 				// 共享目录
 				vm.GET("/:name/shares", middleware.ElasticCloudOnlyMiddleware(), handler.GetShareList)
 				vm.POST("/:name/share", middleware.ElasticCloudOnlyMiddleware(), handler.AddShare)

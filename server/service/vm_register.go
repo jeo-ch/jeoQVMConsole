@@ -86,7 +86,8 @@ func init() {
 		ListPublicIPAttachmentsForVM: listPublicIPAttachmentsForVM,
 
 		// ---- Template ----
-		GetTemplateMeta: getTemplateMetaForVM,
+		GetTemplateMeta:       getTemplateMetaForVM,
+		WriteVMTemplateSource: WriteVMTemplateSource,
 
 		// ---- Resource check ----
 		CheckDirWritable:  CheckDirWritable,

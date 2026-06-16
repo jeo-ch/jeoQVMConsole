@@ -243,6 +243,7 @@ export const endpointGroups = [
       ep('POST', '/vm/:name/lock', '锁定虚拟机', { pathParams: ['name'], notes: [elastic, vmAccess, '锁定后虚拟机无法关机或删除。'] }),
       ep('POST', '/vm/:name/unlock', '解锁虚拟机', { pathParams: ['name'], notes: [elastic, vmAccess, '解锁需要二次验证。'], highRisk: 'unlock_vm' }),
       ep('GET', '/vm/:name/lock', '获取虚拟机锁定状态', { pathParams: ['name'], notes: [vmAccess], response: 'data: { vm_name, locked, locked_at, locked_by }' }),
+      ep('POST', '/vm/:name/make-independent', '将链式克隆虚拟机转为独立虚拟机', { pathParams: ['name'], notes: [admin, elastic, '仅链式克隆（有 backing file）的关机 VM 可用。将 backing chain 合并为独立磁盘镜像，脱离对模板的依赖。', '异步任务，返回 task_id 请在任务中心查看进度。'], highRisk: 'make_vm_independent' }),
       ep('POST', '/vm/create', '创建虚拟机', {
         body: vmCreateBody,
         response: 'data: task_id。创建操作为异步任务，请继续查询任务详情。',

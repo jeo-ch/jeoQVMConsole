@@ -733,3 +733,11 @@ export function getVMLockStatus(name) {
     method: 'get'
   })
 }
+
+// 转为独立虚拟机（脱离链式克隆 backing chain，仅管理员）
+export function makeVMIndependent(name) {
+  return request({
+    url: `/vm/${name}/make-independent`,
+    method: 'post'
+  })
+}
