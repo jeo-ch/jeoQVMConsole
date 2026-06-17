@@ -518,7 +518,13 @@ func setupStaticFileServing(r *gin.Engine) {
 	absWebDistDir, _ := filepath.Abs(webDistDir)
 	logger.App.Info("启用前端静态文件服务", "dir", absWebDistDir)
 
-	// 提供静态资源文件（CSS/JS/图片等）
+	// 提供静态资源文件（CSS/JS/图片等）—— 带 hash 的资源可长缓存
+	r.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/assets/") {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		c.Next()
+	})
 	r.Static("/assets", filepath.Join(absWebDistDir, "assets"))
 
 	// 提供根目录下的静态文件（favicon 等）
@@ -542,7 +548,10 @@ func setupStaticFileServing(r *gin.Engine) {
 			return
 		}
 
-		// SPA 回退到 index.html
+		// SPA 回退到 index.html —— 禁止缓存入口文件，确保升级后浏览器加载最新资源
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
 		c.File(filepath.Join(absWebDistDir, "index.html"))
 	})
 }

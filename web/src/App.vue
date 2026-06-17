@@ -7,11 +7,37 @@
 <script setup>
 import { computed, onMounted, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
+import axios from 'axios'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { applyDocumentTitle, syncPublicSiteTitle } from '@/utils/site'
 
 const locale = computed(() => zhCn)
 const route = useRoute()
+
+const VERSION_STORAGE_KEY = 'app_version'
+
+async function checkVersion() {
+  try {
+    const res = await axios.get('/api/public/version', { timeout: 5000 })
+    const serverVersion = res.data?.data?.version || ''
+    if (!serverVersion) return
+
+    const cachedVersion = localStorage.getItem(VERSION_STORAGE_KEY)
+
+    if (cachedVersion && cachedVersion !== serverVersion) {
+      // 版本号变化，更新缓存并强制刷新页面（跳过浏览器缓存）
+      localStorage.setItem(VERSION_STORAGE_KEY, serverVersion)
+      window.location.reload()
+      return
+    }
+
+    if (!cachedVersion) {
+      localStorage.setItem(VERSION_STORAGE_KEY, serverVersion)
+    }
+  } catch {
+    // 版本检测失败静默忽略，不影响正常使用
+  }
+}
 
 watchEffect(() => {
   applyDocumentTitle(route.meta?.title || '')
@@ -19,6 +45,7 @@ watchEffect(() => {
 
 onMounted(async () => {
   await syncPublicSiteTitle()
+  await checkVersion()
 })
 </script>
 
