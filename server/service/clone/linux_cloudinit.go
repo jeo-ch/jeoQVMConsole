@@ -82,11 +82,30 @@ func prepareLinuxNoCloudInit(params *CloneParams, cloneDisk string) error {
 		"--run-command", "rm -f /etc/cloud/cloud.cfg.d/curtin-preserve-sources.cfg 2>/dev/null || true",
 		// 5. 清理 cloud-init 实例缓存（强制重新初始化，而非跳过）
 		"--run-command", "rm -rf /var/lib/cloud/instances/* /var/lib/cloud/instance",
-		// 6. 写入 cloud-init NoCloud seed 文件（文件系统方式，无时序问题）
+		// 6. 强制启用 SSH 密码登录（包括 root），覆盖发行版默认的 PermitRootLogin prohibit-password
+		//    同时处理 sshd_config.d/ 下可能存在的覆盖文件（Ubuntu 22.04+, Debian 12+）
+		"--run-command", `SSHD_CFG=/etc/ssh/sshd_config; ` +
+			`if [ -f "$SSHD_CFG" ]; then ` +
+			// 启用 PermitRootLogin yes
+			`if grep -qE "^\s*#?\s*PermitRootLogin" "$SSHD_CFG"; then ` +
+			`sed -i "s/^\s*#\?\s*PermitRootLogin.*/PermitRootLogin yes/" "$SSHD_CFG"; ` +
+			`else echo "PermitRootLogin yes" >> "$SSHD_CFG"; fi; ` +
+			// 启用 PasswordAuthentication yes
+			`if grep -qE "^\s*#?\s*PasswordAuthentication" "$SSHD_CFG"; then ` +
+			`sed -i "s/^\s*#\?\s*PasswordAuthentication.*/PasswordAuthentication yes/" "$SSHD_CFG"; ` +
+			`else echo "PasswordAuthentication yes" >> "$SSHD_CFG"; fi; ` +
+			`fi; ` +
+			// 清理 sshd_config.d/ 中可能覆盖上述设置的 drop-in 文件
+			`if [ -d /etc/ssh/sshd_config.d ]; then ` +
+			`for f in /etc/ssh/sshd_config.d/*.conf; do [ -f "$f" ] || continue; ` +
+			`sed -i "s/^\s*PermitRootLogin.*/PermitRootLogin yes/" "$f"; ` +
+			`sed -i "s/^\s*PasswordAuthentication.*/PasswordAuthentication yes/" "$f"; ` +
+			`done; fi`,
+		// 7. 写入 cloud-init NoCloud seed 文件（文件系统方式，无时序问题）
 		"--run-command", "mkdir -p /var/lib/cloud/seed/nocloud",
 		"--upload", metaPath + ":/var/lib/cloud/seed/nocloud/meta-data",
 		"--upload", userPath + ":/var/lib/cloud/seed/nocloud/user-data",
-		// 7. 离线写入 hostname（即使模板无 cloud-init 也保证生效）
+		// 8. 离线写入 hostname（即使模板无 cloud-init 也保证生效）
 		"--run-command", fmt.Sprintf("printf '%%s\\n' %s > /etc/hostname", utils.ShellSingleQuote(params.Hostname)),
 		"--run-command", buildLinuxHostsCommand(params.Hostname),
 		"--quiet",
@@ -159,7 +178,8 @@ func buildNoCloudUserData(params *CloneParams) string {
 	sb.WriteString("#cloud-config\n\n")
 	sb.WriteString(fmt.Sprintf("hostname: %s\n", params.Hostname))
 	sb.WriteString("manage_etc_hosts: true\n\n")
-	sb.WriteString("ssh_pwauth: true\n\n")
+	sb.WriteString("ssh_pwauth: true\n")
+	sb.WriteString("disable_root: false\n\n")
 
 	// 防止 cloud-init 重新锁定用户密码
 	// Ubuntu 等发行版 cloud.cfg 中 default_user 设置 lock_passwd: true，
@@ -183,6 +203,12 @@ func buildNoCloudUserData(params *CloneParams) string {
 	sb.WriteString("growpart:\n  mode: auto\n  devices: ['/']\nresize_rootfs: true\n\n")
 	sb.WriteString("runcmd:\n")
 	sb.WriteString(fmt.Sprintf("  - hostnamectl set-hostname %s 2>/dev/null || true\n", params.Hostname))
+	// 确保 cloud-init 执行后 SSH 配置不被覆盖（部分发行版 cloud-init 会重置 sshd_config）
+	sb.WriteString("  - |\n")
+	sb.WriteString("    sed -i 's/^\\s*#\\?\\s*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config 2>/dev/null || true\n")
+	sb.WriteString("    sed -i 's/^\\s*#\\?\\s*PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config 2>/dev/null || true\n")
+	sb.WriteString("    if [ -d /etc/ssh/sshd_config.d ]; then for f in /etc/ssh/sshd_config.d/*.conf; do [ -f \"$f\" ] || continue; sed -i 's/^\\s*PermitRootLogin.*/PermitRootLogin yes/' \"$f\"; sed -i 's/^\\s*PasswordAuthentication.*/PasswordAuthentication yes/' \"$f\"; done; fi\n")
+	sb.WriteString("    systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || true\n")
 	// LVM 感知磁盘扩容脚本：自动检测根分区是否为 LVM，并执行 pvresize + lvextend
 	// 使用 /sys/class/block 获取父磁盘和分区号，比 lsblk pkname/partn 更可靠
 	sb.WriteString("  - |\n")
