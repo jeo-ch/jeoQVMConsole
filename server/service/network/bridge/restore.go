@@ -35,9 +35,17 @@ HOST_METRIC=%s
 			utils.ShellSingleQuote(cfg.Gateway),
 			utils.ShellSingleQuote(cfg.Metric))
 		content += bridgeHostIPApplyStaticShell()
-		content += `# DNS 迁移到 bridge，避免默认路由切换后解析仍绑定在物理口。
+		// DNS：优先使用静态持久化 DNS，避免重启后因 uplink 被 networkd 禁用导致动态捕获失败
+		if strings.TrimSpace(cfg.DNS) != "" {
+			content += fmt.Sprintf(`# 静态 DNS 配置（创建时捕获）
+HOST_DNS=%s
+`, utils.ShellSingleQuote(cfg.DNS))
+			content += bridgeResolvedDNSStaticShell()
+		} else {
+			content += `# DNS 迁移到 bridge，避免默认路由切换后解析仍绑定在物理口。
 `
-		content += bridgeResolvedDNSShell()
+			content += bridgeResolvedDNSShell()
+		}
 	} else if migrateHostIP {
 		// 没有存储配置时回退到动态捕获（兼容旧记录）
 		content += bridgeHostIPCaptureShell()

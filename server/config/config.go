@@ -170,8 +170,39 @@ type Config struct {
 // GlobalConfig 全局配置实例
 var GlobalConfig *Config
 
+// loadEnvFile 启动时加载 .env 文件内容到环境变量
+// 仅在对应环境变量未设置时加载（环境变量优先级高于 .env 文件）
+func loadEnvFile() {
+	envPath := EnvFilePath()
+	content, err := os.ReadFile(envPath)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if idx := strings.IndexByte(line, '='); idx > 0 {
+			key := strings.TrimSpace(line[:idx])
+			val := strings.TrimSpace(line[idx+1:])
+			// 去掉可选引号
+			if len(val) >= 2 && (val[0] == '"' || val[0] == '\'') && val[len(val)-1] == val[0] {
+				val = val[1 : len(val)-1]
+			}
+			// 仅在环境变量未设置时从 .env 加载（环境变量优先）
+			if os.Getenv(key) == "" {
+				os.Setenv(key, val)
+			}
+		}
+	}
+}
+
 // Init 初始化配置
 func Init() {
+	// 启动时从 .env 文件加载持久化的配置（环境变量优先）
+	loadEnvFile()
+
 	templateDir := getEnv("KVM_TEMPLATE_DIR", "/var/lib/libvirt/images/templates")
 	GlobalConfig = &Config{
 		Port:                                  getEnvInt("KVM_PORT", 8080),
@@ -256,7 +287,7 @@ func Init() {
 		LogMaxBackups:                         getEnvInt("KVM_LOG_MAX_BACKUPS", 0),
 		NetworkWaitOnlineDisabled:             getEnvBool("KVM_NETWORK_WAIT_ONLINE_DISABLED", false),
 		RequestFilterEnabled:                  getEnvBool("KVM_REQUEST_FILTER_ENABLED", true),
-		APIMaxBodySizeMB:                       getEnvInt("KVM_API_MAX_BODY_SIZE_MB", 2),
+		APIMaxBodySizeMB:                      getEnvInt("KVM_API_MAX_BODY_SIZE_MB", 2),
 		ErrorDetailInResponse:                 getEnvBool("KVM_ERROR_DETAIL_IN_RESPONSE", false),
 		SessionFingerprintEnabled:             getEnvBool("KVM_SESSION_FINGERPRINT_ENABLED", true),
 		CORSAllowedOrigins:                    getEnv("KVM_CORS_ALLOWED_ORIGINS", ""),
@@ -335,16 +366,47 @@ func generateRandomKey(byteLen int) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// appendEnvKey 将密钥追加到 .env 文件
+// appendEnvKey 将密钥写入 .env 文件（已有 key 则更新，避免重复追加）
 func appendEnvKey(key, value string) {
 	envPath := EnvFilePath()
-	f, err := os.OpenFile(envPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[安全警告] 无法写入 .env 文件: %v\n", err)
-		return
+
+	// 确保父目录存在
+	if dir := filepath.Dir(envPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "[安全警告] 无法创建 .env 目录 %s: %v\n", dir, err)
+			return
+		}
 	}
-	defer f.Close()
-	f.WriteString(fmt.Sprintf("%s=%s\n", key, value))
+
+	// 读取已有内容
+	envData := make(map[string]string)
+	if content, err := os.ReadFile(envPath); err == nil {
+		for _, line := range strings.Split(string(content), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if idx := strings.IndexByte(line, '='); idx > 0 {
+				k := strings.TrimSpace(line[:idx])
+				v := line[idx+1:]
+				envData[k] = v
+			}
+		}
+	}
+
+	// 更新或新增
+	envData[key] = value
+
+	// 排序后写入
+	var lines []string
+	for k, v := range envData {
+		lines = append(lines, k+"="+v)
+	}
+	sort.Strings(lines)
+	newContent := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(envPath, []byte(newContent), 0600); err != nil {
+		fmt.Fprintf(os.Stderr, "[安全警告] 无法写入 .env 文件: %v\n", err)
+	}
 }
 
 // getEnv 获取环境变量，提供默认值
@@ -825,7 +887,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 
 // EnvFilePath 返回 .env 文件路径
 func EnvFilePath() string {
-	return getEnv("KVM_ENV_FILE", "/opt/kvm-console/.env")
+	return getEnv("KVM_ENV_FILE", "./.env")
 }
 
 // SyncEnvFile 将当前配置同步写入 .env 文件（仅更新数据库中已持久化的 key）

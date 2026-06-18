@@ -32,8 +32,9 @@ export function createNetworkBridge(data) {
   return request({ url: '/network/bridges', method: 'post', data })
 }
 
-export function deleteNetworkBridge(id) {
-  return request({ url: `/network/bridges/${id}`, method: 'delete' })
+export function deleteNetworkBridge(id, name = '') {
+  const params = name ? `?name=${encodeURIComponent(name)}` : ''
+  return request({ url: `/network/bridges/${id}${params}`, method: 'delete' })
 }
 
 export function getPublicIPs() {

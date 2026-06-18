@@ -1801,7 +1801,7 @@ async function submitBridge() {
 
 async function handleDeleteBridge(row) {
   await ElMessageBox.confirm(`确定删除网桥 ${row.name}？`, '删除网桥', { type: 'warning' })
-  await deleteNetworkBridge(row.id)
+  await deleteNetworkBridge(row.id, row.name)
   ElMessage.success('网桥已删除')
   await loadOverview()
 }

@@ -46,6 +46,11 @@ func DeleteNetworkBridge(id uint) error {
 	return bridge.DeleteNetworkBridge(id)
 }
 
+// DeleteNetworkBridgeByName delegates to bridge.DeleteNetworkBridgeByName
+func DeleteNetworkBridgeByName(name string) error {
+	return bridge.DeleteNetworkBridgeByName(name)
+}
+
 // EnsureAllNetworkBridgesRuntime delegates to bridge.EnsureAllNetworkBridgesRuntime
 func EnsureAllNetworkBridgesRuntime() error {
 	return bridge.EnsureAllNetworkBridgesRuntime()

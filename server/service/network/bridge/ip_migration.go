@@ -12,9 +12,10 @@ type HostIPConfig struct {
 	Addrs   string // 换行分隔的 CIDR 地址列表
 	Gateway string // 默认网关 IP
 	Metric  string // 路由 metric
+	DNS     string // 空格分隔的 DNS 服务器 IP 列表
 }
 
-// CaptureInterfaceIPv4 从指定接口捕获当前 IPv4 配置（地址、网关、metric）。
+// CaptureInterfaceIPv4 从指定接口捕获当前 IPv4 配置（地址、网关、metric、DNS）。
 func CaptureInterfaceIPv4(iface string) HostIPConfig {
 	var cfg HostIPConfig
 	result := utils.ExecCommand("bash", "-c", fmt.Sprintf(
@@ -31,7 +32,25 @@ func CaptureInterfaceIPv4(iface string) HostIPConfig {
 		`ip -4 route show default dev %s 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="metric") {print $(i+1); exit}}'`,
 		utils.ShellSingleQuote(iface)))
 	cfg.Metric = strings.TrimSpace(result.Stdout)
+	cfg.DNS = captureInterfaceDNSServers(iface)
 	return cfg
+}
+
+// captureInterfaceDNSServers 从 resolvectl 捕获指定接口的 DNS 服务器，返回空格分隔的 IP 列表。
+// 优先从指定接口捕获，回退到全局 DNS。
+// 使用 Go 原生 IP 解析（resolvectlDNSServers），避免 shell sed 正则被 IPv6 地址中的冒号干扰。
+func captureInterfaceDNSServers(iface string) string {
+	// 先从指定接口获取
+	servers := resolvectlDNSServers(iface)
+	if len(servers) > 0 {
+		return strings.Join(servers, " ")
+	}
+	// 回退到全局
+	servers = resolvectlDNSServers("")
+	if len(servers) > 0 {
+		return strings.Join(servers, " ")
+	}
+	return ""
 }
 
 func migrateInterfaceIPv4ToBridge(uplink, bridge string) {

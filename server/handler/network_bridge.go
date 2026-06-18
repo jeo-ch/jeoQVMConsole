@@ -49,6 +49,16 @@ func DeleteNetworkBridge(c *gin.Context) {
 		return
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
+	name := c.Query("name")
+	// 当 ID 为 0 但提供了名称时，按名称删除（处理 OVS 残留网桥）
+	if id == 0 && name != "" {
+		if err := service.DeleteNetworkBridgeByName(name); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 200, "message": "网桥已删除"})
+		return
+	}
 	if err := service.DeleteNetworkBridge(uint(id)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
