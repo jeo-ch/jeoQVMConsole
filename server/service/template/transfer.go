@@ -178,21 +178,47 @@ func copyFileWithContext(ctx context.Context, sourcePath, targetPath string) err
 	return nil
 }
 
-func validateTemplateDiskFormat(ctx context.Context, diskPath string) error {
+// getTemplateDiskFormat detects the disk image format using qemu-img.
+// Returns the format string (e.g. "qcow2", "raw", "vmdk") or empty string on error.
+func getTemplateDiskFormat(ctx context.Context, diskPath string) string {
 	result := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", 30*time.Second, "info", "--output=json", "-U", diskPath)
 	if result.Error != nil {
-		return fmt.Errorf("读取模板磁盘信息失败: %s", result.Stderr)
+		return ""
 	}
 	var info struct {
 		Format string `json:"format"`
 	}
 	if err := json.Unmarshal([]byte(result.Stdout), &info); err != nil {
-		return fmt.Errorf("解析模板磁盘信息失败: %w", err)
+		return ""
 	}
-	if strings.TrimSpace(info.Format) != "qcow2" {
-		return fmt.Errorf("当前仅支持导入 qcow2 模板磁盘")
+	return strings.TrimSpace(info.Format)
+}
+
+// validateTemplateDiskFormat validates the disk is in a supported format and optionally converts to qcow2.
+// Returns the path to a qcow2 disk (may be the original path), and a cleanup function.
+func validateTemplateDiskFormat(ctx context.Context, diskPath string) (string, func(), error) {
+	srcFormat := getTemplateDiskFormat(ctx, diskPath)
+	if srcFormat == "" {
+		return "", nil, fmt.Errorf("无法识别模板磁盘格式")
 	}
-	return nil
+	if strings.EqualFold(srcFormat, "qcow2") {
+		return diskPath, func() {}, nil
+	}
+	// Convert non-qcow2 formats to qcow2
+	tmpFile, err := os.CreateTemp(filepath.Dir(diskPath), "convert-*.qcow2")
+	if err != nil {
+		return "", nil, fmt.Errorf("创建转换临时文件失败: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", templateCopyTimeout,
+		"convert", "-f", srcFormat, "-O", "qcow2", diskPath, tmpPath)
+	if convertResult.Error != nil {
+		_ = os.Remove(tmpPath)
+		return "", nil, fmt.Errorf("磁盘格式转换失败 (%s → qcow2): %s", srcFormat, convertResult.Stderr)
+	}
+	cleanup := func() { _ = os.Remove(tmpPath) }
+	return tmpPath, cleanup, nil
 }
 
 func getTarArgsForExtract(archivePath, targetDir string) []string {
@@ -299,8 +325,43 @@ func ExportTemplate(ctx context.Context, params *ExportTemplateParams, progressF
 
 	for i, node := range manifest.Nodes {
 		progressFn(15+(i*60/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("正在写入节点 %s ...", node.Meta.AdminName))
-		if err := copyFileSparseWithContext(ctx, filepath.Join(config.GlobalConfig.TemplateDir, node.Name+".qcow2"), filepath.Join(stageDir, node.DiskFile)); err != nil {
-			return nil, err
+		srcTemplatePath := filepath.Join(config.GlobalConfig.TemplateDir, node.Name+".qcow2")
+		srcStagePath := filepath.Join(stageDir, node.DiskFile)
+		// 导出时确保磁盘为 qcow2 格式
+		srcFormat := getTemplateDiskFormat(ctx, srcTemplatePath)
+		needsHashUpdate := false
+		if strings.EqualFold(srcFormat, "qcow2") {
+			if err := copyFileSparseWithContext(ctx, srcTemplatePath, srcStagePath); err != nil {
+				return nil, err
+			}
+		} else if srcFormat != "" {
+			// 非 qcow2 源模板，转换为 qcow2 再导出
+			progressFn(15+(i*60/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("正在转换节点 %s 为 qcow2 ...", node.Meta.AdminName))
+			convertResult := utils.ExecCommandContextWithTimeout(ctx, "qemu-img", templateCopyTimeout,
+				"convert", "-f", srcFormat, "-O", "qcow2", srcTemplatePath, srcStagePath)
+			if convertResult.Error != nil {
+				return nil, fmt.Errorf("导出节点 %s 时转换 qcow2 失败: %s", node.Meta.AdminName, convertResult.Stderr)
+			}
+			needsHashUpdate = true
+		} else {
+			// 无法识别格式，直接复制（保留兼容）
+			if err := copyFileSparseWithContext(ctx, srcTemplatePath, srcStagePath); err != nil {
+				return nil, err
+			}
+		}
+		// 转换后重新计算哈希并更新 manifest，确保导入端哈希校验一致
+		if needsHashUpdate {
+			newHash, hashErr := CalculateFileHashes(srcStagePath)
+			if hashErr != nil {
+				return nil, hashErr
+			}
+			manifest.Nodes[i].FileSize = newHash.FileSize
+			manifest.Nodes[i].MD5 = newHash.MD5
+			manifest.Nodes[i].SHA256 = newHash.SHA256
+			// 同时更新节点 meta 中的哈希值
+			manifest.Nodes[i].Meta.MD5 = newHash.MD5
+			manifest.Nodes[i].Meta.SHA256 = newHash.SHA256
+			manifest.Nodes[i].Meta.FileSize = newHash.FileSize
 		}
 		metaData, _ := json.MarshalIndent(node.Meta, "", "  ")
 		if err := os.WriteFile(filepath.Join(stageDir, node.MetaFile), metaData, 0o644); err != nil {
@@ -559,18 +620,40 @@ func ImportTemplate(ctx context.Context, params *ImportTemplateParams, progressF
 		}
 		progressFn(30+(i*60/maxInt(len(manifest.Nodes), 1)), fmt.Sprintf("正在导入节点 %s ...", node.Meta.AdminName))
 		sourceDisk := filepath.Join(extractDir, node.DiskFile)
-		if err := validateTemplateDiskFormat(ctx, sourceDisk); err != nil {
-			return nil, err
-		}
-		hash, err := CalculateFileHashes(sourceDisk)
+
+		// 验证源文件完整性（转换前校验原始哈希）
+		srcHash, err := CalculateFileHashes(sourceDisk)
 		if err != nil {
 			return nil, err
 		}
-		if hash.FileSize != node.FileSize || !strings.EqualFold(hash.MD5, node.MD5) || !strings.EqualFold(hash.SHA256, node.SHA256) {
+		if srcHash.FileSize != node.FileSize || !strings.EqualFold(srcHash.MD5, node.MD5) || !strings.EqualFold(srcHash.SHA256, node.SHA256) {
 			return nil, fmt.Errorf("模板包节点 %s 哈希不匹配，导入已拒绝", node.Meta.AdminName)
 		}
+
 		targetPath := filepath.Join(templateDir, node.Name+".qcow2")
-		if err := copyFileSparseWithContext(ctx, sourceDisk, targetPath); err != nil {
+		qcow2Disk, convertCleanup, err := validateTemplateDiskFormat(ctx, sourceDisk)
+		if err != nil {
+			return nil, err
+		}
+		if qcow2Disk == sourceDisk {
+			// 已是 qcow2，直接复制
+			if err := copyFileSparseWithContext(ctx, sourceDisk, targetPath); err != nil {
+				_ = os.Remove(targetPath)
+				return nil, err
+			}
+		} else {
+			// 转换后的文件复制到目标位置
+			if err := copyFileSparseWithContext(ctx, qcow2Disk, targetPath); err != nil {
+				convertCleanup()
+				_ = os.Remove(targetPath)
+				return nil, err
+			}
+			convertCleanup()
+		}
+
+		// 转换后重新计算哈希用于保存
+		hash, err := CalculateFileHashes(targetPath)
+		if err != nil {
 			_ = os.Remove(targetPath)
 			return nil, err
 		}
@@ -611,11 +694,13 @@ func importLegacySingleTemplate(ctx context.Context, params *ImportTemplateParam
 		return nil, err
 	}
 	progressFn(20, "正在校验模板磁盘...")
-	if err := validateTemplateDiskFormat(ctx, sourcePath); err != nil {
+	qcow2Disk, convertCleanup, err := validateTemplateDiskFormat(ctx, sourcePath)
+	if err != nil {
 		return nil, err
 	}
+	defer convertCleanup()
 	progressFn(60, "正在写入模板磁盘...")
-	if err := copyFileSparseWithContext(ctx, sourcePath, targetPath); err != nil {
+	if err := copyFileSparseWithContext(ctx, qcow2Disk, targetPath); err != nil {
 		_ = os.Remove(targetPath)
 		return nil, err
 	}
