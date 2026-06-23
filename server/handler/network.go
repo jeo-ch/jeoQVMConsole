@@ -475,6 +475,30 @@ func UpdatePortForward(c *gin.Context) {
 		})
 		return
 	}
+
+	// 编辑后为新端口补充安全组放行规则（与新增端口转发保持一致）。
+	// deletePortForwardWithOptions 会移除旧端口的安全组规则，
+	// 若不在此处为新端口补上，VPC 管理的 VM 会因 nftables ACL 拦截导致转发失效。
+	if comment != "" {
+		forwardVMPort := strings.TrimSpace(req.VMPort)
+		if forwardVMPort == "" {
+			forwardVMPort = strings.TrimSpace(currentRule.DestPort)
+		}
+		forwardProto := strings.TrimSpace(req.Protocol)
+		if forwardProto == "" {
+			forwardProto = strings.TrimSpace(currentRule.Protocol)
+		}
+		if forwardVMPort != "" {
+			if err := service.EnsureSecurityGroupAllowsPortForward(comment, forwardProto, forwardVMPort); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"code":    500,
+					"message": "端口转发规则已更新，但自动补安全组策略失败: " + err.Error(),
+				})
+				return
+			}
+		}
+	}
+
 	if comment != "" && req.VMIP != "" && !service.IsVPCBoundVM(comment) {
 		var count int64
 		model.DB.Model(&model.PortForwardIP{}).Where("vm_name = ? AND ip = ?", comment, req.VMIP).Count(&count)
