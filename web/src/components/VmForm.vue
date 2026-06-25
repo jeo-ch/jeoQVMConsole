@@ -2386,7 +2386,7 @@ import { getUserISOs, selfCreateVm, importVM } from '@/api/storage'
 import { getStorageFiles } from '@/api/storage'
 import { selfCloneVm } from '@/api/user'
 import { getVPCSecurityGroups, getVPCSwitches } from '@/api/vpc'
-import { getCPUAffinityPresets, getSettings, getHostCPUCores } from '@/api/settings'
+import { getCPUAffinityPresets, getSettings, getHostCPUCores, getPublicSystemInfo } from '@/api/settings'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Top, Bottom, Delete, Plus, ArrowRight, Discount } from '@element-plus/icons-vue'
 import FormIcons from '@/components/icons/FormIcons.vue'
@@ -2413,6 +2413,7 @@ const registrationMode = ref(false)
 const cpuAffinityPresets = ref([])
 const cpuAffinityPresetsLoaded = ref(false)
 const hostCPUCores = ref(0)
+const hostArch = ref('x86_64')
 const registrationContext = reactive({
   dedicated_vpc_switch_id: 0,
   dedicated_vpc_label: ''
@@ -4118,10 +4119,15 @@ const onBootTypeChange = () => {
 // 切换虚拟化方案
 const onVirtTypeChange = (val) => {
   if (val === 'kvm') {
-    // 切回 KVM 时重置架构和机器类型
-    form.arch = 'x86_64'
-    form.machine_type = 'q35'
-    applyBootTypeRecommendation('bios', { force: true })
+    // 切回 KVM 时重置为宿主机架构和对应机器类型
+    form.arch = hostArch.value
+    if (hostArch.value === 'aarch64') {
+      form.machine_type = 'virt'
+      applyBootTypeRecommendation('uefi', { force: true })
+    } else {
+      form.machine_type = 'q35'
+      applyBootTypeRecommendation('bios', { force: true })
+    }
   } else {
     // QEMU 模式默认 x86_64
     form.arch = 'x86_64'
@@ -4274,6 +4280,16 @@ const open = async (row, mode, options = {}) => {
       }
     } catch {}
   }
+  // 获取宿主机架构（KVM 模式下自动适配）
+  try {
+    const archRes = await getPublicSystemInfo()
+    if (archRes.data?.arch) {
+      const archStr = archRes.data.arch.split(' ')[0].toLowerCase()
+      if (['aarch64', 'x86_64', 'riscv64'].includes(archStr)) {
+        hostArch.value = archStr
+      }
+    }
+  } catch {}
   // 获取系统设置中的 ISO 存储位置
   try {
     const settingsRes = await getSettings()
@@ -4381,9 +4397,9 @@ const open = async (row, mode, options = {}) => {
       cpu_limit_enabled: false, cpu_limit_percent: 100,
       cpu_affinity: '',
       memory_dynamic_touched: false, memory_pending_apply: false, memory_compat_mode: 'legacy_static', memory_balloon_supported: false, memory_balloon_status: 'not_running',
-      machine_type: 'q35', boot_type: 'bios', watchdog: 'none',
+      machine_type: hostArch.value === 'aarch64' ? 'virt' : 'q35', boot_type: hostArch.value === 'aarch64' ? 'uefi' : 'bios', watchdog: 'none',
       pcie_root_ports: 4,
-      boot_order: ['hd'], virt_type: 'kvm', arch: 'x86_64',
+      boot_order: ['hd'], virt_type: 'kvm', arch: hostArch.value,
       add_disks: [], extra_disks: [],
       host_devices: [], host_devices_touched: false,
       disk_file: '', copy_disk: false, start_after_import: true, hostname: (mode === 'template' || registrationMode.value) ? generateRandomHostname() : '',

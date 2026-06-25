@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"kvm_console/config"
+	"kvm_console/service/arch"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
@@ -162,11 +163,17 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	if params.DiskSize <= 0 {
 		return "", fmt.Errorf("磁盘大小必须大于0GB")
 	}
+	if params.VirtType == "" {
+		params.VirtType = "kvm"
+	}
+	if params.Arch == "" {
+		params.Arch = arch.DetectHostArch()
+	}
 	if params.MachineType == "" {
-		params.MachineType = "q35"
+		params.MachineType = arch.GetProfile(params.Arch).DefaultMachineType()
 	}
 	if params.BootType == "" {
-		params.BootType = "bios"
+		params.BootType = arch.GetProfile(params.Arch).DefaultBootType()
 	}
 	if params.NicModel == "" {
 		params.NicModel = "virtio"
@@ -174,12 +181,7 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	if len(params.BootOrder) == 0 {
 		params.BootOrder = []string{"hd"}
 	}
-	if params.VirtType == "" {
-		params.VirtType = "kvm"
-	}
-	if params.Arch == "" {
-		params.Arch = "x86_64"
-	}
+
 	if !params.IsAdmin {
 		params.CPULimitPercent = D.VMCPULimitUnlimited
 	}
@@ -249,10 +251,8 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	// 虚拟化方案
 	cmdParts = append(cmdParts, fmt.Sprintf("--virt-type %s", params.VirtType))
 
-	// 目标架构（非 x86_64 时指定）
-	if params.Arch != "" && params.Arch != "x86_64" {
-		cmdParts = append(cmdParts, fmt.Sprintf("--arch %s", params.Arch))
-	}
+	// 目标架构
+	cmdParts = append(cmdParts, fmt.Sprintf("--arch %s", params.Arch))
 
 	// 机器类型
 	cmdParts = append(cmdParts, fmt.Sprintf("--machine %s", params.MachineType))
@@ -323,10 +323,10 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	// CPU 模式：根据虚拟化方案决定
 	if params.VirtType == "qemu" {
 		// 软件虚拟化不能使用 host-passthrough
-		if params.Arch == "x86_64" || params.Arch == "" {
-			cmdParts = append(cmdParts, "--cpu qemu64")
+		cpuModel := arch.GetProfile(params.Arch).DefaultCPUModel(params.VirtType)
+		if cpuModel != "" {
+			cmdParts = append(cmdParts, fmt.Sprintf("--cpu %s", cpuModel))
 		}
-		// 非 x86 架构 virt-install 会自动选择合适的 CPU 模型
 	} else {
 		cmdParts = append(cmdParts, "--cpu host-passthrough")
 	}

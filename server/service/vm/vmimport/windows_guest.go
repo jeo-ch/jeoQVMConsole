@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"kvm_console/service"
+	"kvm_console/service/arch"
 	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
@@ -13,6 +14,14 @@ import (
 
 // importVMWindowsDefine handles Windows VM XML construction and define for ImportVM
 func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, ramMB int, memoryMeta *vm_memory.VMMemoryMetadata, srcDiskPath string, needUEFI bool) error {
+	// 获取宿主机架构 Profile，参数化 arch/machine/emulator/watchdog
+	hostArch := arch.DetectHostArch()
+	profile := arch.GetProfile(hostArch)
+	archName := profile.Arch()
+	machineType := profile.DefaultMachineType()
+	emulatorPath := profile.EmulatorPath()
+	watchdogModel := profile.DefaultWatchdogModel()
+
 	// 网络接口 XML：仅在有主网口交换机配置时才添加
 	var networkXML string
 	if params.SwitchID != 0 {
@@ -56,7 +65,7 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
   <memory unit='KiB'>%d</memory>
 %s
   <os>
-    <type arch='x86_64' machine='pc-q35-noble'>hvm</type>
+    <type arch='%s' machine='%s'>hvm</type>
     <loader readonly='yes' secure='yes' type='pflash'>%s</loader>
     <nvram template='%s' templateFormat='raw' format='qcow2'>%s</nvram>
     <boot dev='hd'/>
@@ -76,7 +85,7 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
   <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>destroy</on_crash>
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
   <devices>
-    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <emulator>%s</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='%s' discard='unmap' detect_zeroes='unmap'/>
       <source file='%s'/><target dev='vda' bus='virtio'/>
@@ -90,11 +99,11 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
       <listen type='address' address='0.0.0.0'/>
     </graphics>
     <video><model type='virtio' heads='1' primary='yes'/></video>
-    <watchdog model='itco' action='reset'/>
+    <watchdog model='%s' action='reset'/>
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), loaderPath, varsTemplate, nvramClone, clockOpenTag, format, destDiskPath, networkXML)
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath, varsTemplate, nvramClone, clockOpenTag, emulatorPath, format, destDiskPath, networkXML, watchdogModel)
 
 	var err error
 	if memoryMeta != nil {
@@ -168,6 +177,14 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 
 // importDiskByPathWindowsDefine handles Windows VM XML construction and define for ImportDiskByPath
 func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath, format string, ramMB int, memoryMeta *vm_memory.VMMemoryMetadata, mainDiskSrc string) error {
+	// 获取宿主机架构 Profile，参数化 arch/machine/emulator/watchdog
+	hostArch := arch.DetectHostArch()
+	profile := arch.GetProfile(hostArch)
+	archName := profile.Arch()
+	machineType := profile.DefaultMachineType()
+	emulatorPath := profile.EmulatorPath()
+	watchdogModel := profile.DefaultWatchdogModel()
+
 	// 网络接口 XML：仅在有主网口交换机配置时才添加
 	var networkXML string
 	if params.SwitchID != 0 {
@@ -209,7 +226,7 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
   <memory unit='KiB'>%d</memory>
 %s
   <os>
-    <type arch='x86_64' machine='pc-q35-noble'>hvm</type>
+    <type arch='%s' machine='%s'>hvm</type>
     <loader readonly='yes' secure='yes' type='pflash'>%s</loader>
     <nvram template='%s' templateFormat='raw' format='qcow2'>%s</nvram>
     <boot dev='hd'/>
@@ -229,7 +246,7 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
   <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>destroy</on_crash>
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
   <devices>
-    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <emulator>%s</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='%s' discard='unmap' detect_zeroes='unmap'/>
       <source file='%s'/><target dev='vda' bus='virtio'/>
@@ -243,11 +260,11 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
       <listen type='address' address='0.0.0.0'/>
     </graphics>
     <video><model type='virtio' heads='1' primary='yes'/></video>
-    <watchdog model='itco' action='reset'/>
+    <watchdog model='%s' action='reset'/>
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), loaderPath2, varsTemplate2, nvramClone, clockOpenTag, format, destDiskPath, networkXML)
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath2, varsTemplate2, nvramClone, clockOpenTag, emulatorPath, format, destDiskPath, networkXML, watchdogModel)
 
 	var err error
 	if memoryMeta != nil {

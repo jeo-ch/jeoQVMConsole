@@ -12,7 +12,27 @@ import (
 var (
 	vmAPICRegex         = regexp.MustCompile(`(?s)\n?\s*<apic\b[^>]*/>`)
 	vmFeaturesBlockExpr = regexp.MustCompile(`(?s)<features\b[^>]*>.*?</features>`)
+	vmAPICArchRegex     = regexp.MustCompile(`<type\b[^>]*\barch=['"]([^'"]+)['"]`)
 )
+
+// supportsVMAPICForArch 判断指定架构是否支持 APIC（仅 x86 系列支持）。
+func supportsVMAPICForArch(archStr string) bool {
+	switch strings.ToLower(strings.TrimSpace(archStr)) {
+	case "", "x86_64", "i686", "i586", "i486", "i386":
+		return true
+	default:
+		return false
+	}
+}
+
+// supportsVMAPICForDomainXML 从 domain XML 中提取架构并判断是否支持 APIC。
+func supportsVMAPICForDomainXML(xmlContent string) bool {
+	matches := vmAPICArchRegex.FindStringSubmatch(xmlContent)
+	if len(matches) < 2 {
+		return true // 解析失败默认支持（x86降级）
+	}
+	return supportsVMAPICForArch(matches[1])
+}
 
 // ResolveVMAPICEnabled 解析 APIC 最终状态，未显式传入时默认启用。
 func ResolveVMAPICEnabled(enabled *bool) bool {
@@ -29,6 +49,11 @@ func ParseVMAPICFromDomainXML(xmlContent string) bool {
 
 // ApplyVMAPICToDomainXML 将 APIC 开关写入 domain XML。
 func ApplyVMAPICToDomainXML(xmlContent string, enabled *bool) (string, error) {
+	// ARM 等非 x86 架构不支持 APIC，直接返回
+	if !supportsVMAPICForDomainXML(xmlContent) {
+		return xmlContent, nil
+	}
+
 	resolvedEnabled := ResolveVMAPICEnabled(enabled)
 	updated := vmAPICRegex.ReplaceAllString(xmlContent, "")
 	if !resolvedEnabled {

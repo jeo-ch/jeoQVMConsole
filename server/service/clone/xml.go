@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"kvm_console/logger"
+	"kvm_console/service/arch"
 	"kvm_console/service/libvirt_rpc"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
@@ -99,7 +100,7 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 	}
 	installCmd := fmt.Sprintf(
 		"virt-install --name %s --ram %d %s "+
-			"--machine q35 "+
+			fmt.Sprintf("--machine %s ", arch.GetProfile(arch.DetectHostArch()).DefaultMachineType())+
 			bootOpt+
 			"--disk %s,format=qcow2,bus=%s,discard=unmap,detect_zeroes=unmap "+
 			"--osinfo detect=on,require=off "+

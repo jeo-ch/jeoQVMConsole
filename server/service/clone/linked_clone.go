@@ -11,6 +11,7 @@ import (
 
 	"kvm_console/config"
 	"kvm_console/logger"
+	"kvm_console/service/arch"
 	"kvm_console/service/libvirt_rpc"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
@@ -219,7 +220,7 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		fmt.Sprintf("--name %s", utils.ShellSingleQuote(params.Name)),
 		fmt.Sprintf("--ram %d", ramMB),
 		vcpuArg,
-		"--machine q35",
+		fmt.Sprintf("--machine %s", arch.GetProfile(arch.DetectHostArch()).DefaultMachineType()),
 		fmt.Sprintf("--disk %s,format=qcow2,bus=%s,discard=unmap,detect_zeroes=unmap", utils.ShellSingleQuote(cloneDisk), params.DiskBus),
 		"--osinfo detect=on,require=off",
 	}

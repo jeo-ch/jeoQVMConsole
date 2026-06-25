@@ -96,7 +96,8 @@ var reFullPCIERootPort = regexp.MustCompile(`(?s)\s*<controller[^>]*model=['"]pc
 // InjectPCIERootPorts 为 q35 虚拟机 XML 注入正确索引的 pcie-root-port 控制器
 // 会先清除 virt-install 可能生成的不正确的 pcie-root-port，再按正确索引重建
 func InjectPCIERootPorts(xmlContent string, portCount int) string {
-	// 仅针对 q35 机器类型
+	// ARM virt 机型的 PCIe 拓扑由 virt-install 自动生成，无需手动注入。
+	// 此处仅对 q35 机型（x86）注入额外的 PCIe root ports。
 	if !strings.Contains(xmlContent, "q35") {
 		return xmlContent
 	}

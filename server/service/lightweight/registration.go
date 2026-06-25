@@ -12,6 +12,7 @@ import (
 	"kvm_console/logger"
 	"kvm_console/model"
 	clonepkg "kvm_console/service/clone"
+	"kvm_console/service/arch"
 	"kvm_console/service/storage/disk"
 	"kvm_console/service/vm_xml"
 )
@@ -45,14 +46,23 @@ func parseJSONText(raw string, value interface{}) error {
 }
 
 func NormalizeVMNicModel(value string) string {
+	var normalized string
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "e1000e":
-		return "e1000e"
+		normalized = "e1000e"
 	case "rtl8139":
-		return "rtl8139"
+		normalized = "rtl8139"
 	default:
-		return "virtio"
+		normalized = "virtio"
 	}
+	// ARM 架构只支持 virtio 网卡，降级 e1000e/rtl8139
+	if arch.DetectHostArch() == arch.ArchAarch64 {
+		switch normalized {
+		case "e1000e", "rtl8139":
+			return "virtio"
+		}
+	}
+	return normalized
 }
 
 func validateLightweightVMRegistrationUser(user model.User) error {

@@ -9,6 +9,7 @@ import (
 
 	"kvm_console/config"
 	"kvm_console/logger"
+	"kvm_console/service/arch"
 	"kvm_console/service/libvirt_rpc"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
@@ -253,6 +254,14 @@ func windowsDiskControllerXML(bus string) string {
 func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ramMB int, memoryMeta *memory.VMMemoryMetadata, needUEFI bool, isNoInit bool, progressFn func(int, string)) error {
 	templateDir := config.GlobalConfig.TemplateDir
 
+	// 获取宿主机架构 Profile，参数化 arch/machine/emulator/watchdog
+	hostArch := arch.DetectHostArch()
+	profile := arch.GetProfile(hostArch)
+	archName := profile.Arch()
+	machineType := profile.DefaultMachineType()
+	emulatorPath := profile.EmulatorPath()
+	watchdogModel := profile.DefaultWatchdogModel()
+
 	var isoPath string
 	var isoErr error
 	if !isNoInit {
@@ -308,10 +317,10 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	}
 	diskTargetDev := windowsSystemDiskTargetDev(diskBus)
 	diskControllerXML := windowsDiskControllerXML(diskBus)
-	osXML := `  <os>
-    <type arch='x86_64' machine='pc-q35-noble'>hvm</type>
+	osXML := fmt.Sprintf(`  <os>
+    <type arch='%s' machine='%s'>hvm</type>
     <boot dev='hd'/>
-  </os>`
+  </os>`, archName, machineType)
 	smmXML := ""
 	tpmXML := ""
 	if needUEFI {
@@ -320,11 +329,11 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 		loaderPath := vm_xml.ResolveOVMFLoaderPath(true)
 		varsTemplate := vm_xml.ResolveOVMFVarsTemplatePath(true)
 		osXML = fmt.Sprintf(`  <os>
-    <type arch='x86_64' machine='pc-q35-noble'>hvm</type>
+    <type arch='%s' machine='%s'>hvm</type>
     <loader readonly='yes' secure='yes' type='pflash'>%s</loader>
     <nvram template='%s' templateFormat='raw' format='qcow2'>%s</nvram>
     <boot dev='hd'/>
-  </os>`, loaderPath, varsTemplate, nvramClone)
+  </os>`, archName, machineType, loaderPath, varsTemplate, nvramClone)
 		smmXML = "<smm state='on'/>"
 		tpmXML = "    <tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>\n"
 	}
@@ -360,7 +369,7 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
   <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>destroy</on_crash>
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
   <devices>
-    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <emulator>%s</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='qcow2' discard='unmap' detect_zeroes='unmap'/>
       <source file='%s'/><target dev='%s' bus='%s'/>
@@ -375,11 +384,11 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
       <listen type='address' address='0.0.0.0'/>
     </graphics>
     <video><model type='virtio' heads='1' primary='yes'/></video>
-    <watchdog model='itco' action='reset'/>
+    <watchdog model='%s' action='reset'/>
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, D.BuildVCPUTag(params.VCPU, params.MaxVCPU), osXML, smmXML, clockOpenTag, cloneDisk, diskTargetDev, diskBus, diskControllerXML, networkXML, tpmXML)
+		params.Name, ramKiB, D.BuildVCPUTag(params.VCPU, params.MaxVCPU), osXML, smmXML, clockOpenTag, emulatorPath, cloneDisk, diskTargetDev, diskBus, diskControllerXML, networkXML, tpmXML, watchdogModel)
 	var err error
 	if memoryMeta != nil {
 		vmXML, err = memory.ApplyMemoryMetadataToDomainXML(vmXML, memoryMeta, false)

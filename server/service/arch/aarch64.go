@@ -1,9 +1,8 @@
 package arch
 
-// ==================== aarch64 Profile（占位框架） ====================
-//
-// 本文件为 ARM 架构适配的框架占位，实际 ARM 兼容待后续实现。
-// 现阶段仅提供基本参数定义，供架构检测和前端展示使用。
+import "os"
+
+// ==================== aarch64 Profile ====================
 
 type aarch64Profile struct{}
 
@@ -31,13 +30,31 @@ func (p *aarch64Profile) DefaultCPUModel(virtType string) string {
 }
 
 func (p *aarch64Profile) UEFIFirmwarePath(secureBoot bool) string {
-	_ = secureBoot // ARM 暂不支持安全引导
-	return "/usr/share/AAVMF/AAVMF_CODE.fd"
+	// ARM 暂不支持安全引导，忽略 secureBoot 参数
+	candidates := []string{
+		"/usr/share/AAVMF/AAVMF_CODE.fd",
+		"/usr/share/AAVMF/AAVMF_CODE.no-secboot.fd",
+		"/usr/share/qemu-efi-aarch64/QEMU_EFI.fd",
+	}
+	return pickFirstExistingPath(candidates, candidates[0])
 }
 
 func (p *aarch64Profile) UEFIVarsTemplatePath(secureBoot bool) string {
 	_ = secureBoot
-	return "/usr/share/AAVMF/AAVMF_VARS.fd"
+	candidates := []string{
+		"/usr/share/AAVMF/AAVMF_VARS.fd",
+		"/usr/share/qemu-efi-aarch64/vars-template-pflash.raw",
+	}
+	return pickFirstExistingPath(candidates, candidates[0])
+}
+
+func pickFirstExistingPath(candidates []string, fallback string) string {
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return fallback
 }
 
 func init() {

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"kvm_console/service/arch"
 	"kvm_console/utils"
 )
 
@@ -260,13 +261,13 @@ func ApplyVMBootTypeToDomainXML(name, xmlContent, bootType string) (string, erro
 		return "", fmt.Errorf("不支持的引导方式: %s", bootType)
 	}
 
-	arch := ParseVMArchFromDomainXML(xmlContent)
+	vmArch := ParseVMArchFromDomainXML(xmlContent)
 	machineType := ParseVMMachineTypeFromDomainXML(xmlContent)
-	if normalized == VMBootTypeBIOS && arch == "aarch64" {
+	if normalized == VMBootTypeBIOS && vmArch == "aarch64" {
 		return "", fmt.Errorf("ARM 架构虚拟机不支持 BIOS 引导")
 	}
 	if normalized == VMBootTypeUEFISecure {
-		if arch == "aarch64" || arch == "riscv64" {
+		if vmArch == "aarch64" || vmArch == "riscv64" {
 			return "", fmt.Errorf("当前架构暂不支持 UEFI 安全引导")
 		}
 		if machineType == "i440fx" {
@@ -288,8 +289,12 @@ func ApplyVMBootTypeToDomainXML(name, xmlContent, bootType string) (string, erro
 
 	if normalized != VMBootTypeBIOS {
 		secure := normalized == VMBootTypeUEFISecure
-		loaderPath := ResolveOVMFLoaderPath(secure)
-		varsTemplate := ResolveOVMFVarsTemplatePath(secure)
+		if vmArch == "" {
+			vmArch = "x86_64"
+		}
+		profile := arch.GetProfile(vmArch)
+		loaderPath := profile.UEFIFirmwarePath(secure)
+		varsTemplate := profile.UEFIVarsTemplatePath(secure)
 		nvramPath := resolveVMNVRAMPath(name, xmlContent)
 		loaderNVRAMXML := buildUEFILoaderNVRAMXML(secure, loaderPath, varsTemplate, nvramPath)
 		cleanedOS = insertUEFIFirmwareXML(cleanedOS, loaderNVRAMXML)
@@ -320,7 +325,12 @@ func EnsureVMUEFINVRAMFile(name, xmlContent, bootType string) error {
 		return ConvertExistingNVRAMToQCOW2(nvramPath)
 	}
 
-	templatePath := ResolveOVMFVarsTemplatePath(normalized == VMBootTypeUEFISecure)
+	vmArch := ParseVMArchFromDomainXML(xmlContent)
+	if vmArch == "" {
+		vmArch = "x86_64"
+	}
+	profile := arch.GetProfile(vmArch)
+	templatePath := profile.UEFIVarsTemplatePath(normalized == VMBootTypeUEFISecure)
 	if err := CreateQCOW2NVRAMFromTemplate(templatePath, nvramPath); err != nil {
 		return fmt.Errorf("创建 UEFI NVRAM 文件失败: %w", err)
 	}

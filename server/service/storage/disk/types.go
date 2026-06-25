@@ -1,6 +1,10 @@
 package disk
 
-import "strings"
+import (
+	"strings"
+
+	"kvm_console/service/arch"
+)
 
 // ExtraDiskParam defines extra disk parameters when creating a VM.
 // Moved from service root vm_create.go to avoid circular dependency.
@@ -18,16 +22,25 @@ type ExtraDiskParam struct {
 // NormalizeVMDiskBus normalizes a disk bus string to a known value.
 // Moved from service root lightweight_vm_registration.go to avoid circular dependency.
 func NormalizeVMDiskBus(value string) string {
+	var normalized string
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "":
-		return ""
+		normalized = ""
 	case "scsi":
-		return "scsi"
+		normalized = "scsi"
 	case "sata":
-		return "sata"
+		normalized = "sata"
 	case "ide":
-		return "ide"
+		normalized = "ide"
 	default:
-		return "virtio"
+		normalized = "virtio"
 	}
+	// ARM 架构不支持 sata/ide 磁盘总线，降级为 virtio
+	if arch.DetectHostArch() == arch.ArchAarch64 {
+		switch normalized {
+		case "sata", "ide":
+			return "virtio"
+		}
+	}
+	return normalized
 }
