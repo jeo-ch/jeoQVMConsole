@@ -6,6 +6,7 @@ import (
 	"kvm_console/logger"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"kvm_console/config"
@@ -169,11 +170,16 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	if params.Arch == "" {
 		params.Arch = arch.DetectHostArch()
 	}
+	profile := arch.GetProfile(params.Arch)
 	if params.MachineType == "" {
-		params.MachineType = arch.GetProfile(params.Arch).DefaultMachineType()
+		params.MachineType = profile.DefaultMachineType()
+	} else if !slices.Contains(profile.SupportedMachineTypes(), params.MachineType) {
+		params.MachineType = profile.DefaultMachineType()
 	}
 	if params.BootType == "" {
-		params.BootType = arch.GetProfile(params.Arch).DefaultBootType()
+		params.BootType = profile.DefaultBootType()
+	} else if !slices.Contains(profile.SupportedBootTypes(), params.BootType) {
+		params.BootType = profile.DefaultBootType()
 	}
 	if params.NicModel == "" {
 		params.NicModel = "virtio"

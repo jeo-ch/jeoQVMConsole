@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"kvm_console/config"
 	"kvm_console/logger"
 	"kvm_console/service"
+	"kvm_console/service/arch"
 	"kvm_console/service/ip_resolver"
 	vm_memory "kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
@@ -25,11 +27,18 @@ func ImportDiskByPath(ctx context.Context, params *ImportDiskByPathParams, progr
 	}
 
 	// 默认值设置
+	// 根据宿主机架构解析机器类型和引导类型
+	hostArch := arch.DetectHostArch()
+	hostProfile := arch.GetProfile(hostArch)
 	if params.MachineType == "" {
-		params.MachineType = "q35"
+		params.MachineType = hostProfile.DefaultMachineType()
+	} else if !slices.Contains(hostProfile.SupportedMachineTypes(), params.MachineType) {
+		params.MachineType = hostProfile.DefaultMachineType()
 	}
 	if params.BootType == "" {
-		params.BootType = "bios"
+		params.BootType = hostProfile.DefaultBootType()
+	} else if !slices.Contains(hostProfile.SupportedBootTypes(), params.BootType) {
+		params.BootType = hostProfile.DefaultBootType()
 	}
 	if params.NicModel == "" {
 		params.NicModel = "virtio"

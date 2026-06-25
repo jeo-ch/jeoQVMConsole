@@ -3149,7 +3149,7 @@ const applySelectedTemplateSettings = (tpl, options = {}) => {
     form.fnos_device_id_mode = 'regenerate'
     form.fnos_device_id = ''
   }
-  form.machine_type = 'q35'
+  form.machine_type = (form.arch === 'aarch64' || form.arch === 'riscv64') ? 'virt' : 'q35'
   const templateBootType = resolveTemplateBootTypeForForm(tpl)
   if (templateBootType) {
     form.boot_type = templateBootType
@@ -4075,10 +4075,10 @@ const onISOChange = (paths) => {
   if (form.disk_size < minDisk) {
     form.disk_size = minDisk
   }
-  // Windows 自动设置 UEFI + Q35
+  // Windows 自动设置 UEFI + 合适的机器类型
   if (iso.os_type === 'windows') {
     applyBootTypeRecommendation('uefi')
-    form.machine_type = 'q35'
+    form.machine_type = (form.arch === 'aarch64' || form.arch === 'riscv64') ? 'virt' : 'q35'
     // Windows 默认使用 SATA 磁盘驱动和 e1000e 网卡（兼容性更好）
     form.disk_bus = 'sata'
     form.nic_model = 'e1000e'
@@ -4094,7 +4094,7 @@ const onOsTypeChange = () => {
   form.os_variant = ''
   if (form.os_type === 'windows') {
     applyBootTypeRecommendation('uefi')
-    form.machine_type = 'q35'
+    form.machine_type = (form.arch === 'aarch64' || form.arch === 'riscv64') ? 'virt' : 'q35'
     form.disk_bus = 'sata'
     form.nic_model = 'e1000e'
   } else {

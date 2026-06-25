@@ -136,7 +136,18 @@ func ApplyVMVideoModelToDomainXML(xmlStr, videoModel, osType string) string {
 }
 
 // ApplyWindowsGuestOptimizationsToDomainXML 为 Windows 来宾补充更完整的 Hyper-V 优化配置。
+// 仅在 x86_64 架构上应用 Hyper-V enlightenments；ARM/RISC-V 不支持这些特性，
+// 若 XML 中已包含 hyperv 块则移除。
 func ApplyWindowsGuestOptimizationsToDomainXML(xmlStr string) string {
+	// 解析架构，非 x86_64 架构不注入 Hyper-V 优化
+	vmArch := ParseVMArchFromDomainXML(xmlStr)
+	if vmArch != "" && vmArch != "x86_64" {
+		// 移除已有的 hyperv 块和 hypervclock 定时器
+		xmlStr = vmHyperVBlockRegexp.ReplaceAllString(xmlStr, "")
+		xmlStr = removeHyperVClockTimer(xmlStr)
+		return xmlStr
+	}
+
 	block := renderWindowsHyperVBlock()
 	if vmHyperVBlockRegexp.MatchString(xmlStr) {
 		return ensureWindowsHyperVClockTimer(vmHyperVBlockRegexp.ReplaceAllString(xmlStr, block))
@@ -145,6 +156,11 @@ func ApplyWindowsGuestOptimizationsToDomainXML(xmlStr string) string {
 		return ensureWindowsHyperVClockTimer(strings.Replace(xmlStr, "</features>", block+"\n  </features>", 1))
 	}
 	return ensureWindowsHyperVClockTimer(xmlStr)
+}
+
+// removeHyperVClockTimer 从 XML 中移除 hypervclock 定时器
+func removeHyperVClockTimer(xmlStr string) string {
+	return vmHyperVClockTimerRegexp.ReplaceAllString(xmlStr, "")
 }
 
 func leadingWhitespace(value string) string {

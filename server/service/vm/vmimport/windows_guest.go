@@ -21,6 +21,14 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 	machineType := profile.DefaultMachineType()
 	emulatorPath := profile.EmulatorPath()
 	watchdogModel := profile.DefaultWatchdogModel()
+	isX8664 := archName == arch.ArchX8664
+
+	// Hyper-V enlightenments 仅在 x86_64 架构上支持
+	var hyperVBlock, hyperVFeaturesBlock string
+	if isX8664 {
+		hyperVBlock = "    <hyperv mode='custom'>\n      <relaxed state='on'/><vapic state='on'/><spinlocks state='on' retries='8191'/>\n    </hyperv>\n    "
+		hyperVFeaturesBlock = "    <timer name='pit' tickpolicy='delay'/>\n    <timer name='hpet' present='no'/><timer name='hypervclock' present='yes'/>"
+	}
 
 	// 网络接口 XML：仅在有主网口交换机配置时才添加
 	var networkXML string
@@ -72,15 +80,11 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
   </os>
   <features>
     <acpi/><apic/>
-    <hyperv mode='custom'>
-      <relaxed state='on'/><vapic state='on'/><spinlocks state='on' retries='8191'/>
-    </hyperv>
-    <vmport state='off'/><smm state='on'/>
+    %s<vmport state='off'/><smm state='on'/>
   </features>
   <cpu mode='host-passthrough' check='none' migratable='on'/>
   %s
-    <timer name='rtc' tickpolicy='catchup'/><timer name='pit' tickpolicy='delay'/>
-    <timer name='hpet' present='no'/><timer name='hypervclock' present='yes'/>
+    <timer name='rtc' tickpolicy='catchup'/>%s
   </clock>
   <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>destroy</on_crash>
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
@@ -103,7 +107,7 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath, varsTemplate, nvramClone, clockOpenTag, emulatorPath, format, destDiskPath, networkXML, watchdogModel)
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath, varsTemplate, nvramClone, clockOpenTag, hyperVBlock, emulatorPath, format, destDiskPath, networkXML, hyperVFeaturesBlock, watchdogModel)
 
 	var err error
 	if memoryMeta != nil {
@@ -184,6 +188,14 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 	machineType := profile.DefaultMachineType()
 	emulatorPath := profile.EmulatorPath()
 	watchdogModel := profile.DefaultWatchdogModel()
+	isX8664 := archName == arch.ArchX8664
+
+	// Hyper-V enlightenments 仅在 x86_64 架构上支持
+	var hyperVBlock, hyperVFeaturesBlock string
+	if isX8664 {
+		hyperVBlock = "    <hyperv mode='custom'>\n      <relaxed state='on'/><vapic state='on'/><spinlocks state='on' retries='8191'/>\n    </hyperv>\n    "
+		hyperVFeaturesBlock = "    <timer name='pit' tickpolicy='delay'/>\n    <timer name='hpet' present='no'/><timer name='hypervclock' present='yes'/>"
+	}
 
 	// 网络接口 XML：仅在有主网口交换机配置时才添加
 	var networkXML string
@@ -233,15 +245,11 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
   </os>
   <features>
     <acpi/><apic/>
-    <hyperv mode='custom'>
-      <relaxed state='on'/><vapic state='on'/><spinlocks state='on' retries='8191'/>
-    </hyperv>
-    <vmport state='off'/><smm state='on'/>
+    %s<vmport state='off'/><smm state='on'/>
   </features>
   <cpu mode='host-passthrough' check='none' migratable='on'/>
   %s
-    <timer name='rtc' tickpolicy='catchup'/><timer name='pit' tickpolicy='delay'/>
-    <timer name='hpet' present='no'/><timer name='hypervclock' present='yes'/>
+    <timer name='rtc' tickpolicy='catchup'/>%s
   </clock>
   <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>destroy</on_crash>
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
@@ -264,7 +272,7 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath2, varsTemplate2, nvramClone, clockOpenTag, emulatorPath, format, destDiskPath, networkXML, watchdogModel)
+		params.Name, ramKiB, service.BuildVCPUTag(params.VCPU, params.MaxVCPU), archName, machineType, loaderPath2, varsTemplate2, nvramClone, clockOpenTag, hyperVBlock, emulatorPath, format, destDiskPath, networkXML, hyperVFeaturesBlock, watchdogModel)
 
 	var err error
 	if memoryMeta != nil {

@@ -261,6 +261,14 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	machineType := profile.DefaultMachineType()
 	emulatorPath := profile.EmulatorPath()
 	watchdogModel := profile.DefaultWatchdogModel()
+	isX8664 := archName == arch.ArchX8664
+
+	// Hyper-V enlightenments 仅在 x86_64 架构上支持
+	var hyperVBlock, hyperVTimerBlock string
+	if isX8664 {
+		hyperVBlock = "    <hyperv mode='custom'>\n      <relaxed state='on'/><vapic state='on'/><spinlocks state='on' retries='8191'/>\n    </hyperv>\n    "
+		hyperVTimerBlock = "<timer name='pit' tickpolicy='delay'/>\n    <timer name='hpet' present='no'/><timer name='hypervclock' present='yes'/>"
+	}
 
 	var isoPath string
 	var isoErr error
@@ -356,15 +364,11 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 %s
   <features>
     <acpi/><apic/>
-    <hyperv mode='custom'>
-      <relaxed state='on'/><vapic state='on'/><spinlocks state='on' retries='8191'/>
-    </hyperv>
-    <vmport state='off'/>%s
+    %s<vmport state='off'/>%s
   </features>
   <cpu mode='host-passthrough' check='none' migratable='on'/>
   %s
-    <timer name='rtc' tickpolicy='catchup'/><timer name='pit' tickpolicy='delay'/>
-    <timer name='hpet' present='no'/><timer name='hypervclock' present='yes'/>
+    <timer name='rtc' tickpolicy='catchup'/>%s
   </clock>
   <on_poweroff>destroy</on_poweroff><on_reboot>restart</on_reboot><on_crash>destroy</on_crash>
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
@@ -388,7 +392,7 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
     <memballoon model='virtio' freePageReporting='on'><stats period='5'/></memballoon>
   </devices>
 </domain>`,
-		params.Name, ramKiB, D.BuildVCPUTag(params.VCPU, params.MaxVCPU), osXML, smmXML, clockOpenTag, emulatorPath, cloneDisk, diskTargetDev, diskBus, diskControllerXML, networkXML, tpmXML, watchdogModel)
+		params.Name, ramKiB, D.BuildVCPUTag(params.VCPU, params.MaxVCPU), osXML, smmXML, hyperVBlock, clockOpenTag, hyperVTimerBlock, emulatorPath, cloneDisk, diskTargetDev, diskBus, diskControllerXML, networkXML, tpmXML, watchdogModel)
 	var err error
 	if memoryMeta != nil {
 		vmXML, err = memory.ApplyMemoryMetadataToDomainXML(vmXML, memoryMeta, false)
