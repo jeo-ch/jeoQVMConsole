@@ -141,3 +141,119 @@ jobs:
 
           echo "已上传文件列表:"
           ossutil ls ${OSS_PATH}/
+
+  # ==================== ARM64 架构构建 ====================
+  build-arm64:
+    name: 构建 Linux arm64
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      # ==================== 检出代码 ====================
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # ==================== 设置 Node.js ====================
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      # ==================== 构建前端 ====================
+      - name: 安装前端依赖
+        working-directory: web
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: web
+        run: npm run build
+
+      # ==================== 设置 Go ====================
+      - name: 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      # ==================== 构建后端 ====================
+      - name: 构建后端二进制
+        working-directory: server
+        env:
+          CGO_ENABLED: 1
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          VERSION="v${{ inputs.version }}"
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          go build -ldflags="-s -w -X main.Version=${VERSION} -X kvm_console/handler.Version=${VERSION} -X kvm_console/handler.BuildTime=${BUILD_TIME}" -o kvm-console .
+
+      # ==================== 打包发行文件 ====================
+      - name: 打包发行文件
+        run: |
+          mkdir -p release/kvm-console
+          # 后端二进制
+          cp server/kvm-console release/kvm-console/
+          # 前端静态文件
+          cp -r web/dist release/kvm-console/web-dist
+          # 安装脚本
+          cp install.sh release/kvm-console/
+          chmod +x release/kvm-console/install.sh
+          chmod +x release/kvm-console/kvm-console
+          # 打包
+          cd release
+          tar -czf kvm-console-linux-arm64.tar.gz kvm-console/
+
+      # ==================== GitHub Artifacts 上传 ====================
+      - name: 上传构建产物 (GitHub)
+        if: inputs.artifact_storage == 'github'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kvm-console-linux-arm64
+          path: release/kvm-console-linux-arm64.tar.gz
+
+      # ==================== 创建 GitHub Release (追加 arm64 产物) ====================
+      - name: 上传 arm64 产物到 GitHub Release
+        if: inputs.create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          files: release/kvm-console-linux-arm64.tar.gz
+          generate_release_notes: false
+          # 如果 Release 已由 amd64 job 创建，此步会自动追加文件而不会重复创建
+
+      # ==================== 阿里云 OSS 上传 ====================
+      - name: 安装阿里云 ossutil
+        if: inputs.artifact_storage == 'aliyun-oss'
+        run: |
+          curl https://gosspublic.alicdn.com/ossutil/install.sh | sudo bash
+          ossutil --version
+
+      - name: 配置阿里云 OSS 凭证
+        if: inputs.artifact_storage == 'aliyun-oss'
+        run: |
+          ossutil config \
+            --endpoint ${{ secrets.ALIYUN_OSS_ENDPOINT }} \
+            --access-key-id ${{ secrets.ALIYUN_OSS_ACCESS_KEY_ID }} \
+            --access-key-secret ${{ secrets.ALIYUN_OSS_ACCESS_KEY_SECRET }}
+
+      - name: 上传构建产物到阿里云 OSS
+        if: inputs.artifact_storage == 'aliyun-oss'
+        run: |
+          VERSION="${{ inputs.version }}"
+          BUCKET="${{ secrets.ALIYUN_OSS_BUCKET }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          OSS_PATH="oss://${BUCKET}/${REPO_NAME}/v${VERSION}"
+
+          echo "======================================"
+          echo "上传目标: ${OSS_PATH}"
+          echo "======================================"
+
+          ossutil cp release/kvm-console-linux-arm64.tar.gz ${OSS_PATH}/kvm-console-linux-arm64.tar.gz -f
+
+          echo "======================================"
+          echo "构建产物已上传至阿里云 OSS"
+          echo "======================================"
+
+          echo "已上传文件列表:"
+          ossutil ls ${OSS_PATH}/
