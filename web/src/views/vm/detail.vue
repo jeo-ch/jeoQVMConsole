@@ -219,6 +219,67 @@
               </template>
               <VncConsole :vm-name="vmName" :vm-status="vmInfo.status" :guest-password="vmInfo.credential?.password || ''" />
             </el-tab-pane>
+
+            <el-tab-pane name="spice" lazy>
+              <template #label>
+                <span class="tab-label-text">
+                  <el-icon><VideoCamera /></el-icon> SPICE 控制台
+                </span>
+              </template>
+
+              <!-- SPICE 面板：供外部客户端（virt-viewer/spicy）连接 -->
+              <div class="spice-panel">
+                <div class="spice-panel-header">
+                  <span class="spice-title">SPICE 协议（外部客户端）</span>
+                  <el-tag v-if="vmInfo.spiceInfo.enabled" :type="vmInfo.spiceInfo.exposed ? 'danger' : 'success'" size="small">
+                    {{ vmInfo.spiceInfo.exposed ? '已对外暴露' : '仅本地' }}
+                  </el-tag>
+                  <el-tag v-else type="info" size="small">未开启</el-tag>
+                </div>
+
+                <div class="spice-actions">
+                  <el-button v-if="!vmInfo.spiceInfo.enabled" type="primary" size="small" :loading="vmInfo.spiceLoading" @click="handleSpiceEnable">
+                    开启 SPICE
+                  </el-button>
+                  <template v-else>
+                    <el-button type="warning" size="small" :loading="vmInfo.spiceLoading" @click="handleSpiceDisable">
+                    关闭 SPICE
+                    </el-button>
+                    <el-button size="small" :loading="vmInfo.spiceLoading" @click="handleSpiceChangePassword">
+                      {{ vmInfo.spiceInfo.has_password ? '修改密码' : '设置密码' }}
+                    </el-button>
+                    <el-tooltip content="开启后通过公网 IP 供外部客户端连接（自动放行防火墙端口）" placement="top">
+                      <span>
+                        <el-switch
+                          :model-value="vmInfo.spiceInfo.exposed"
+                          :loading="vmInfo.spiceLoading"
+                          active-text="对外暴露"
+                          inline-prompt
+                          @change="handleSpiceExpose"
+                        />
+                      </span>
+                    </el-tooltip>
+                  </template>
+                </div>
+
+                <div v-if="vmInfo.spiceInfo.enabled" class="spice-info">
+                  <div class="spice-info-row">
+                    <span class="info-label">SPICE 端口</span>
+                    <span class="info-value mono">{{ vmInfo.spiceInfo.port || '-' }}</span>
+                  </div>
+                  <div v-if="vmInfo.spiceInfo.exposed && vmInfo.spiceConnInfo.host" class="spice-info-row">
+                    <span class="info-label">外部地址</span>
+                    <span class="info-value mono">{{ vmInfo.spiceConnInfo.host }}:{{ vmInfo.spiceConnInfo.port }}</span>
+                  </div>
+                  <div class="spice-hint">
+                    使用 virt-viewer / spicy 等客户端连接；下载 .vv 文件可直接双击由 virt-viewer 打开。
+                  </div>
+                  <el-button type="primary" plain size="small" @click="handleDownloadSpiceVV">
+                    下载 .vv 连接文件
+                  </el-button>
+                </div>
+              </div>
+            </el-tab-pane>
             <el-tab-pane v-if="showDeveloperTab" name="monitor" lazy>
               <template #label>
                 <span class="tab-label-text">
@@ -701,6 +762,15 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from
 import { useRoute } from 'vue-router'
 import { createVmDetailSSE, operateVm, resetVmLinuxPassword, lockVm, unlockVm, getVmPCIEInfo } from '@/api/vm'
 import { getDiskList, getVMNetworkStatus } from '@/api/vm'
+import {
+  getSpiceStatus,
+  getSpiceConnInfo,
+  enableSpice,
+  disableSpice,
+  changeSpicePassword,
+  exposeSpice,
+  downloadSpiceVV
+} from '@/api/vm'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SnapshotList from '@/components/SnapshotList.vue'
 import NetworkList from '@/components/NetworkList.vue'
@@ -719,7 +789,7 @@ import { copyTextWithFallback } from '@/utils/clipboard'
 import {
   ArrowLeft, ArrowUp, Cpu, Odometer, Location, Coin,
   RefreshRight, Refresh, SwitchButton, CircleClose, VideoPlay,
-  Edit, Connection, Monitor, Operation, Setting, Lock, AlarmClock,
+  Edit, Connection, Monitor, Operation, Setting, Lock, AlarmClock, VideoCamera,
   PictureFilled, TrendCharts, Timer
 } from '@element-plus/icons-vue'
 
@@ -893,6 +963,10 @@ const vmInfo = reactive({
   autostart: false,
   vnc_port: '',
   public_ips: [],
+  // SPICE 显示协议（与 VNC 共存，供外部客户端连接）
+  spiceInfo: { enabled: false, port: '', has_password: false, exposed: false },
+  spiceConnInfo: { host: '', port: '', password: '', exposed: false },
+  spiceLoading: false,
   continuous_runtime_seconds: 0,
   continuous_running_since: '',
   pcie_root_ports: 0,
@@ -1323,6 +1397,10 @@ const handleTabClick = (tab) => {
     activeTab.value = previousTab.value
     return
   }
+  if (tab.paneName === 'spice') {
+    refreshSpiceStatus()
+    refreshSpiceConnInfo()
+  }
   previousTab.value = tab.paneName
 }
 
@@ -1375,6 +1453,112 @@ onMounted(() => {
   window.addEventListener('scroll', handleScroll)
   // 磁盘 IOPS 不再在页面挂载时加载，改为信息卡片区进入视口时按需加载
 })
+
+// ==================== SPICE 显示协议 ====================
+// 与 VNC 共存，供使用 virt-viewer/spicy 的外部客户端连接。
+const refreshSpiceStatus = async () => {
+  try {
+    const res = await getSpiceStatus(vmName.value)
+    vmInfo.spiceInfo = res.data || { enabled: false, port: '', has_password: false, exposed: false }
+  } catch (e) {
+    // 静默失败，不打扰用户
+  }
+}
+
+const refreshSpiceConnInfo = async () => {
+  try {
+    const res = await getSpiceConnInfo(vmName.value)
+    vmInfo.spiceConnInfo = res.data || { host: '', port: '', password: '', exposed: false }
+  } catch (e) {
+    // 静默失败
+  }
+}
+
+const handleSpiceEnable = async () => {
+  vmInfo.spiceLoading = true
+  try {
+    await enableSpice(vmName.value)
+    ElMessage.success('SPICE 已开启')
+    await refreshSpiceStatus()
+  } catch (e) {
+    /* request.js 已弹错 */
+  } finally {
+    vmInfo.spiceLoading = false
+  }
+}
+
+const handleSpiceDisable = async () => {
+  try {
+    await ElMessageBox.confirm('关闭 SPICE 将断开所有外部 SPICE 客户端连接，确认？', '关闭 SPICE', {
+      confirmButtonText: '确认关闭',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch (e) {
+    return
+  }
+  vmInfo.spiceLoading = true
+  try {
+    await disableSpice(vmName.value)
+    ElMessage.success('SPICE 已关闭')
+    await refreshSpiceStatus()
+  } catch (e) {
+    /* request.js 已弹错 */
+  } finally {
+    vmInfo.spiceLoading = false
+  }
+}
+
+const handleSpiceExpose = async (expose) => {
+  vmInfo.spiceLoading = true
+  try {
+    await exposeSpice(vmName.value, expose)
+    ElMessage.success(expose ? 'SPICE 已对外暴露' : 'SPICE 已关闭对外暴露')
+    await refreshSpiceStatus()
+    if (expose) {
+      await refreshSpiceConnInfo()
+    }
+  } catch (e) {
+    // 失败时回滚开关显示
+    vmInfo.spiceInfo.exposed = !expose
+  } finally {
+    vmInfo.spiceLoading = false
+  }
+}
+
+const handleSpiceChangePassword = async () => {
+  let password
+  try {
+    const res = await ElMessageBox.prompt('请输入新的 SPICE 密码', '修改 SPICE 密码', {
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+      inputPattern: /^\S+$/,
+      inputErrorMessage: '密码不能包含空格'
+    })
+    password = res.value
+  } catch (e) {
+    return
+  }
+  await changeSpicePassword(vmName.value, password)
+  ElMessage.success('SPICE 密码已修改')
+  await refreshSpiceStatus()
+}
+
+const handleDownloadSpiceVV = async () => {
+  try {
+    const blob = await downloadSpiceVV(vmName.value)
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${vmName.value}.vv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    ElMessage.error('下载 .vv 文件失败')
+  }
+}
 
 onUnmounted(() => {
   closeSSE()
@@ -2171,5 +2355,49 @@ onUnmounted(() => {
     display: block;
     text-align: right;
   }
+}
+
+/* SPICE 面板（与 VNC 控制台共处一个 tab） */
+.spice-panel {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+  border-radius: 8px;
+  background: var(--el-bg-color-page, #f5f7fa);
+}
+.spice-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.spice-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--el-text-color-primary, #303133);
+}
+.spice-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.spice-info {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.spice-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.spice-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  line-height: 1.5;
 }
 </style>

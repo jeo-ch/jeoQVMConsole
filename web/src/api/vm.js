@@ -1,3 +1,4 @@
+import axios from 'axios'
 import request from '@/utils/request'
 
 // 获取虚拟机列表
@@ -293,6 +294,77 @@ export function exposeVnc(name, expose) {
     method: 'post',
     data: { expose }
   })
+}
+
+// ==================== SPICE（外部客户端直连，提供 .vv 下载） ====================
+
+// 获取 SPICE 状态
+export function getSpiceStatus(name) {
+  return request({
+    url: `/vm/${name}/spice/status`,
+    method: 'get'
+  })
+}
+
+// 获取 SPICE 连接信息（host:port + 密码）
+export function getSpiceConnInfo(name) {
+  return request({
+    url: `/vm/${name}/spice/info`,
+    method: 'get'
+  })
+}
+
+// 开启 SPICE
+export function enableSpice(name, password = '') {
+  return request({
+    url: `/vm/${name}/spice/enable`,
+    method: 'post',
+    data: { password }
+  })
+}
+
+// 关闭 SPICE
+export function disableSpice(name) {
+  return request({
+    url: `/vm/${name}/spice/disable`,
+    method: 'post'
+  })
+}
+
+// 修改 SPICE 密码
+export function changeSpicePassword(name, password) {
+  return request({
+    url: `/vm/${name}/spice/passwd`,
+    method: 'post',
+    data: { password }
+  })
+}
+
+// 切换 SPICE 对外暴露（联动宿主防火墙端口）
+export function exposeSpice(name, expose) {
+  return request({
+    url: `/vm/${name}/spice/expose`,
+    method: 'post',
+    data: { expose }
+  })
+}
+
+// 下载 SPICE .vv 连接文件（返回 blob，使用原始 axios 避免被 JSON 拦截器干扰）
+export async function downloadSpiceVV(name) {
+  const baseURL = import.meta.env.VITE_APP_BASE_API || '/api'
+  const { useUserStore } = await import('@/store/user')
+  const userStore = useUserStore()
+  const headers = {}
+  if (userStore.token) {
+    headers.Authorization = `Bearer ${userStore.token}`
+  }
+  const response = await axios({
+    url: baseURL + `/vm/${name}/spice/vv`,
+    method: 'get',
+    responseType: 'blob',
+    headers
+  })
+  return response.data
 }
 
 // 获取 QEMU Monitor 状态

@@ -223,3 +223,24 @@ sudo apt install -y genisoimage
 **开关：** 系统设置 → 安全防护 → 泄露密码检测（默认开启，关闭后跳过所有密码校验）
 
 **缓存：** API 响应结果在内存中缓存 30 分钟，避免重复请求
+
+## SPICE 显示协议
+
+### QEMU SPICE 服务端
+
+**用途：** 为虚拟机提供 SPICE 显示协议（与 VNC 共存），供使用 virt-viewer / spicy 等外部客户端的用户连接。面板默认 VNC；SPICE 面向偏好高保真/本地化体验的用户。
+
+**宿主依赖：** QEMU SPICE 服务端随 `qemu-system-x86` 自带（Debian/Ubuntu 默认包含 `libspice-server1`），通常无需额外安装。若编译自定义 QEMU，需启用 `--enable-spice`。建议同时具备 QXL 显卡模型支持（默认随 QEMU 提供）。
+
+**安装方式（Debian/Ubuntu，按需）：**
+
+```bash
+sudo apt install -y qemu-system-x86 libspice-server1
+```
+
+**说明：** 面板在创建/克隆/导入虚拟机时默认注入 SPICE graphics（默认监听 127.0.0.1）。用户在虚拟机详情 → VNC 控制台 tab 的 SPICE 面板可开启/关闭、设置密码、切换对外暴露（暴露时自动放行宿主防火墙对应端口）。对外暴露后可下载 `.vv` 连接文件，由客户端的 virt-viewer 打开直连。
+
+### 客户端工具（用户侧，非宿主）
+
+**virt-viewer / spicy：** 用户使用 virt-viewer（Linux：`apt install virt-viewer`；Windows：从 [virt-manager.org](https://virt-manager.org/download/) 下载）或 spicy 打开下载的 `.vv` 文件即可直连。面板不提供 SPICE 的浏览器内客户端——SPICE 仅面向原生客户端。
+

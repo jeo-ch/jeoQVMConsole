@@ -1120,6 +1120,11 @@ func initCloneDeps() {
 
 		// Migration hook
 		HookEnsureVMNotMigrating: service.HookEnsureVMNotMigrating,
+
+		// SPICE graphics（创建即带，默认本地监听）
+		InjectSPICEGraphics:     service.InjectSPICEGraphicsToDomainXML,
+		EnsureQXLVideo:          service.EnsureQXLVideo,
+		SpiceEnabledByDefault:   func() bool { return config.GlobalConfig.SpiceEnabledByDefault },
 	})
 }
 

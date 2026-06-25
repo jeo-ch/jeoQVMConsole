@@ -1,6 +1,7 @@
 package service
 
 import (
+	"kvm_console/config"
 	"kvm_console/model"
 	publicippkg "kvm_console/service/public_ip"
 	schedpkg "kvm_console/service/scheduler"
@@ -166,6 +167,11 @@ func init() {
 		SetVMRemark:                 vmpkg.SetVMRemark,
 		SetVMFreeze:                 vmpkg.SetVMFreeze,
 		FixOnReboot:                 vmpkg.FixOnReboot,
+
+		// SPICE graphics（创建即带，默认本地监听）
+		InjectSPICEGraphics:   InjectSPICEGraphicsToDomainXML,
+		EnsureQXLVideo:        EnsureQXLVideo,
+		SpiceEnabledByDefault: func() bool { return config.GlobalConfig.SpiceEnabledByDefault },
 	})
 }
 

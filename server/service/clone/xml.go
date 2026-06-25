@@ -180,6 +180,16 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 		return err
 	}
 
+	// SPICE graphics（默认本地监听），与 VNC 共存
+	if D.SpiceEnabledByDefault != nil && D.SpiceEnabledByDefault() {
+		if D.InjectSPICEGraphics != nil {
+			vmXML = D.InjectSPICEGraphics(vmXML, "", "127.0.0.1")
+		}
+		if D.EnsureQXLVideo != nil {
+			vmXML = D.EnsureQXLVideo(vmXML)
+		}
+	}
+
 	if _, err := libvirt_rpc.DefineDomainXMLRPC(vmXML); err != nil {
 		return fmt.Errorf("定义虚拟机失败: %w", err)
 	}

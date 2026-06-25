@@ -88,6 +88,8 @@ type Config struct {
 	MaxBurstOutbound int `json:"max_burst_outbound"`
 	// 救援系统 ISO 路径
 	RescueISO string `json:"rescue_iso"`
+	// 创建虚拟机时是否默认附带 SPICE 显示协议（与 VNC 共存，默认本地监听）
+	SpiceEnabledByDefault bool `json:"spice_enabled_by_default"`
 	// 面板对外访问地址，用于邮件中的跳转链接
 	PublicBaseURL string `json:"public_base_url"`
 	// 网站标题，用于登录页、浏览器标签页等展示
@@ -237,6 +239,7 @@ func Init() {
 		MaxBurstInbound:                       getEnvInt("KVM_MAX_BURST_INBOUND", 0),
 		MaxBurstOutbound:                      getEnvInt("KVM_MAX_BURST_OUTBOUND", 0),
 		RescueISO:                             getEnv("KVM_RESCUE_ISO", ""),
+		SpiceEnabledByDefault:                 getEnvBool("KVM_SPICE_ENABLED_BY_DEFAULT", true),
 		PublicBaseURL:                         getEnv("KVM_PUBLIC_BASE_URL", ""),
 		SiteTitle:                             getEnv("KVM_SITE_TITLE", DefaultSiteTitle),
 		DevelopmentMode:                       getEnvBool("KVM_DEVELOPMENT_MODE", false),
@@ -646,6 +649,10 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			}
 		case "rescue_iso":
 			c.RescueISO = value
+		case "spice_enabled_by_default":
+			if v, err := strconv.ParseBool(value); err == nil {
+				c.SpiceEnabledByDefault = v
+			}
 		case "public_base_url":
 			c.PublicBaseURL = value
 		case "site_title":
@@ -840,6 +847,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"max_burst_inbound":         strconv.Itoa(c.MaxBurstInbound),
 		"max_burst_outbound":        strconv.Itoa(c.MaxBurstOutbound),
 		"rescue_iso":                c.RescueISO,
+		"spice_enabled_by_default":  strconv.FormatBool(c.SpiceEnabledByDefault),
 		"public_base_url":           c.PublicBaseURL,
 		"site_title":                c.SiteTitle,
 		"development_mode":          strconv.FormatBool(c.DevelopmentMode),

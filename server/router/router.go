@@ -193,6 +193,15 @@ func Setup() *gin.Engine {
 				vm.POST("/:name/vnc/expose", handler.ExposeVnc)
 				vm.GET("/:name/vnc/ws", handler.VncWebSocket)
 
+				// SPICE（外部客户端直连，不走 WS 代理；提供 .vv 下载）
+				vm.GET("/:name/spice/status", handler.GetSpiceStatus)
+				vm.GET("/:name/spice/info", handler.GetSpiceConnInfoHandler)
+				vm.POST("/:name/spice/enable", handler.EnableSpice)
+				vm.POST("/:name/spice/disable", handler.DisableSpice)
+				vm.POST("/:name/spice/passwd", handler.ChangeSpicePassword)
+				vm.POST("/:name/spice/expose", handler.ExposeSpice)
+				vm.GET("/:name/spice/vv", handler.DownloadSpiceVV)
+
 				// QEMU Monitor（普通用户仅开放安全子集）
 				vm.GET("/:name/monitor/status", handler.GetVMMonitorStatus)
 				vm.POST("/:name/monitor/command", handler.ExecuteVMMonitorCommand)

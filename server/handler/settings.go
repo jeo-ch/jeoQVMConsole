@@ -44,6 +44,7 @@ type SettingsResponse struct {
 	MaxBurstInbound                       int    `json:"max_burst_inbound"`
 	MaxBurstOutbound                      int    `json:"max_burst_outbound"`
 	RescueISO                             string `json:"rescue_iso"`
+	SpiceEnabledByDefault                 bool   `json:"spice_enabled_by_default"`
 	PublicBaseURL                         string `json:"public_base_url"`
 	SiteTitle                             string `json:"site_title"`
 	DevelopmentMode                       bool   `json:"development_mode"`
@@ -112,6 +113,7 @@ type UpdateSettingsRequest struct {
 	MaxBurstInbound                       *int    `json:"max_burst_inbound"`
 	MaxBurstOutbound                      *int    `json:"max_burst_outbound"`
 	RescueISO                             *string `json:"rescue_iso"`
+	SpiceEnabledByDefault                 *bool   `json:"spice_enabled_by_default"`
 	PublicBaseURL                         *string `json:"public_base_url"`
 	SiteTitle                             *string `json:"site_title"`
 	DevelopmentMode                       *bool   `json:"development_mode"`
@@ -227,6 +229,7 @@ func GetSettings(c *gin.Context) {
 			MaxBurstInbound:                       cfg.MaxBurstInbound,
 			MaxBurstOutbound:                      cfg.MaxBurstOutbound,
 			RescueISO:                             cfg.RescueISO,
+			SpiceEnabledByDefault:                 cfg.SpiceEnabledByDefault,
 			PublicBaseURL:                         cfg.PublicBaseURL,
 			SiteTitle:                             siteTitle,
 			DevelopmentMode:                       cfg.DevelopmentMode,
@@ -375,6 +378,9 @@ func UpdateSettings(c *gin.Context) {
 	}
 	if req.RescueISO != nil {
 		cfg.RescueISO = *req.RescueISO
+	}
+	if req.SpiceEnabledByDefault != nil {
+		cfg.SpiceEnabledByDefault = *req.SpiceEnabledByDefault
 	}
 	if req.PublicBaseURL != nil {
 		cfg.PublicBaseURL = strings.TrimSpace(*req.PublicBaseURL)
@@ -705,7 +711,7 @@ func persistSettings(cfg *config.Config) []string {
 	settingsMap := cfg.ToSettingsMap()
 	var persistErrors []string
 	for key, value := range settingsMap {
-		if value == "" || (value == "0" && key != "dynamic_memory_observation_hours") {
+		if value == "" || (value == "0" && key != "dynamic_memory_observation_hours" && key != "spice_enabled_by_default") {
 			_ = model.DeleteSetting(key)
 			continue
 		}

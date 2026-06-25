@@ -166,6 +166,11 @@ type Deps struct {
 	SetVMRemark                 func(name, remark string) error
 	SetVMFreeze                 func(name string, freeze bool) error
 	FixOnReboot                 func(name string)
+
+	// ---- SPICE graphics（创建即带，默认本地监听） ----
+	InjectSPICEGraphics   func(xmlStr, passwd, listenAddr string) string
+	EnsureQXLVideo        func(xmlStr string) string
+	SpiceEnabledByDefault func() bool
 }
 
 // D is the package-level dependency container. Set via InitDeps().

@@ -441,6 +441,16 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 		return "", err
 	}
 
+	// SPICE graphics（默认本地监听），与 VNC 共存
+	if D.SpiceEnabledByDefault != nil && D.SpiceEnabledByDefault() {
+		if D.InjectSPICEGraphics != nil {
+			vmXML = D.InjectSPICEGraphics(vmXML, "", "127.0.0.1")
+		}
+		if D.EnsureQXLVideo != nil {
+			vmXML = D.EnsureQXLVideo(vmXML)
+		}
+	}
+
 	// 硬件直通设备
 	if len(params.HostDevices) > 0 {
 		progressFn(55, "配置硬件直通设备...")
