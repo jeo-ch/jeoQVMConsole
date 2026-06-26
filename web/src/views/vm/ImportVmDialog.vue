@@ -34,7 +34,7 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="CPU 核心" prop="vcpu">
-            <el-input-number v-model="form.vcpu" :min="1" :max="32" style="width: 100%;" />
+            <el-input-number v-model="form.vcpu" :min="1" :max="vcpuMax" style="width: 100%;" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -95,9 +95,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { importVM } from '@/api/storage'
 import { getStorageFiles } from '@/api/storage'
+import { getHostCPUCores } from '@/api/settings'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps({
@@ -111,6 +112,8 @@ const formRef = ref(null)
 const submitting = ref(false)
 const diskLoading = ref(false)
 const diskFiles = ref([])
+const hostCPUCores = ref(0)
+const vcpuMax = computed(() => hostCPUCores.value > 0 ? hostCPUCores.value : 64)
 
 const form = reactive({
   name: '',
@@ -149,12 +152,25 @@ watch(() => props.modelValue, (val) => {
   dialogVisible.value = val
   if (val) {
     loadDiskFiles()
+    loadHostCPU()
   }
 })
 watch(dialogVisible, (val) => {
   emit('update:modelValue', val)
 })
 
+
+// 获取宿主机 CPU 核心数
+const loadHostCPU = async () => {
+  try {
+    const res = await getHostCPUCores()
+    if (res.code === 200 && res.data?.cores) {
+      hostCPUCores.value = res.data.cores
+    }
+  } catch (err) {
+    console.error('获取宿主机 CPU 核心数失败:', err)
+  }
+}
 
 // 加载磁盘文件列表
 const loadDiskFiles = async () => {

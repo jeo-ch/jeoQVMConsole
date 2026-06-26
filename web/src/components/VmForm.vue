@@ -34,7 +34,7 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="CPU 核心" prop="vcpu">
-                  <el-input-number v-model="form.vcpu" :min="vcpuMin" :max="32" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
+                  <el-input-number v-model="form.vcpu" :min="vcpuMin" :max="vcpuMax" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -966,7 +966,7 @@
                 <el-row :gutter="20">
                   <el-col :span="12">
                     <el-form-item label="CPU 核心" prop="vcpu">
-                      <el-input-number v-model="form.vcpu" :min="vcpuMin" :max="32" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
+                      <el-input-number v-model="form.vcpu" :min="vcpuMin" :max="vcpuMax" style="width: 100%;" :disabled="isEdit && editVmStatus === 'running' && !form.cpu_hotplug_enabled" />
                     </el-form-item>
                   </el-col>
                   <el-col :span="12">
@@ -3394,6 +3394,7 @@ const bootTypeTouched = ref(false) // 仅在用户手动切换引导类型后置
 
 // 运行态下 CPU/内存最小值为原始值，禁止减少
 const vcpuMin = computed(() => (isEdit.value && editVmStatus.value === 'running') ? editOrigVcpu.value : 1)
+const vcpuMax = computed(() => hostCPUCores.value > 0 ? hostCPUCores.value : 64)
 const memoryMin = computed(() => (isEdit.value && editVmStatus.value === 'running') ? editOrigMemory.value : 1)
 
 // 挂载已有磁盘对话框
