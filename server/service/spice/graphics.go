@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"kvm_console/service/arch"
 )
 
 // graphics.go — SPICE graphics 块与 QXL video 的 XML 注入/改写。
@@ -90,7 +92,12 @@ func extractSPICEPasswd(block string) string {
 // EnsureQXLVideo 确保 domain 有 QXL video 模型（SPICE 最佳搭档）。
 //   - 已有 <video>：把其中 <model type=.../> 改为 qxl
 //   - 无 <video>：在 </devices> 前插入 <video><model type='qxl' heads='1'/></video>
+//
+// ARM64 (aarch64) 架构不支持 QXL 显卡模型，直接返回原 XML 不做更改。
 func EnsureQXLVideo(xmlStr string) string {
+	if arch.IsHostArch(arch.ArchAarch64) {
+		return xmlStr
+	}
 	if spiceVideoBlockRe.MatchString(xmlStr) {
 		// 已有 video 块，替换其 model 为 qxl
 		return spiceVideoBlockRe.ReplaceAllStringFunc(xmlStr, func(videoBlock string) string {
