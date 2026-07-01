@@ -52,15 +52,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
-      # ==================== 构建前端 ====================
-      - name: 安装前端依赖
-        working-directory: web
-        run: npm ci
-
-      - name: 构建前端
-        working-directory: web
-        run: npm run build
-
       # ==================== 设置 Go ====================
       - name: 设置 Go
         uses: actions/setup-go@v5
@@ -68,33 +59,10 @@ jobs:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
 
-      # ==================== 构建后端 ====================
-      - name: 构建后端二进制
-        working-directory: server
-        env:
-          CGO_ENABLED: 1
-          GOOS: linux
-          GOARCH: amd64
+      # ==================== 使用 build.sh 构建 ====================
+      - name: 执行构建脚本 (build.sh)
         run: |
-          VERSION="v${{ inputs.version }}"
-          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          go build -ldflags="-s -w -X main.Version=${VERSION} -X kvm_console/handler.Version=${VERSION} -X kvm_console/handler.BuildTime=${BUILD_TIME}" -o kvm-console .
-
-      # ==================== 打包发行文件 ====================
-      - name: 打包发行文件
-        run: |
-          mkdir -p release/kvm-console
-          # 后端二进制
-          cp server/kvm-console release/kvm-console/
-          # 前端静态文件
-          cp -r web/dist release/kvm-console/web-dist
-          # 安装脚本
-          cp install.sh release/kvm-console/
-          chmod +x release/kvm-console/install.sh
-          chmod +x release/kvm-console/kvm-console
-          # 打包
-          cd release
-          tar -czf kvm-console-linux-amd64.tar.gz kvm-console/
+          bash build.sh -v "${{ inputs.version }}"
 
       # ==================== GitHub Artifacts 上传 ====================
       - name: 上传构建产物 (GitHub)
@@ -171,15 +139,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
-      # ==================== 构建前端 ====================
-      - name: 安装前端依赖
-        working-directory: web
-        run: npm ci
-
-      - name: 构建前端
-        working-directory: web
-        run: npm run build
-
       # ==================== 设置 Go ====================
       - name: 设置 Go
         uses: actions/setup-go@v5
@@ -187,33 +146,10 @@ jobs:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
 
-      # ==================== 构建后端 ====================
-      - name: 构建后端二进制
-        working-directory: server
-        env:
-          CGO_ENABLED: 1
-          GOOS: linux
-          GOARCH: arm64
+      # ==================== 使用 build.sh 构建 ====================
+      - name: 执行构建脚本 (build.sh)
         run: |
-          VERSION="v${{ inputs.version }}"
-          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          go build -ldflags="-s -w -X main.Version=${VERSION} -X kvm_console/handler.Version=${VERSION} -X kvm_console/handler.BuildTime=${BUILD_TIME}" -o kvm-console .
-
-      # ==================== 打包发行文件 ====================
-      - name: 打包发行文件
-        run: |
-          mkdir -p release/kvm-console
-          # 后端二进制
-          cp server/kvm-console release/kvm-console/
-          # 前端静态文件
-          cp -r web/dist release/kvm-console/web-dist
-          # 安装脚本
-          cp install.sh release/kvm-console/
-          chmod +x release/kvm-console/install.sh
-          chmod +x release/kvm-console/kvm-console
-          # 打包
-          cd release
-          tar -czf kvm-console-linux-arm64.tar.gz kvm-console/
+          bash build.sh -v "${{ inputs.version }}"
 
       # ==================== GitHub Artifacts 上传 ====================
       - name: 上传构建产物 (GitHub)
