@@ -177,7 +177,7 @@ if [ "$SKIP_BACKEND" = false ]; then
         info "检测到交叉编译器: ${cross_cc}"
     fi
 
-    CGO_ENABLED=${CGO_ENABLED:-0} GOOS=linux GOARCH="$GOARCH_VALUE" \
+    CGO_ENABLED=${CGO_ENABLED:-1} GOOS=linux GOARCH="$GOARCH_VALUE" \
         go build \
         -ldflags="-s -w \
             -X main.Version=${BUILD_VERSION} \
