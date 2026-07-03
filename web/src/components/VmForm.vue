@@ -475,7 +475,7 @@
                   仅 ARM 架构可用。当系统安装 ISO 出现 Synchronous Exception 报错时建议开启
                 </div>
               </el-form-item>
-              <el-form-item v-if="form.arch === 'aarch64'" label="直接内核引导">
+              <el-form-item label="直接内核引导">
                 <div class="advanced-field-row">
                   <el-switch v-model="form.direct_boot_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" />
                   <el-tooltip content="绕过 UEFI 引导器直接加载内核，适用于 ISO 的 EFI 引导器与当前固件不兼容的场景" placement="top" effect="dark">
@@ -1825,7 +1825,7 @@
                   仅 ARM 架构可用。当系统安装 ISO 出现 Synchronous Exception 报错时建议开启
                 </div>
               </el-form-item>
-              <el-form-item v-if="form.arch === 'aarch64'" label="直接内核引导">
+              <el-form-item label="直接内核引导">
                 <div class="advanced-field-row">
                   <el-switch v-model="form.direct_boot_enabled" active-text="启用" inactive-text="关闭" />
                   <el-tooltip content="绕过 UEFI 引导器直接加载内核，适用于 ISO 的 EFI 引导器与当前固件不兼容的场景" placement="top" effect="dark">
@@ -5061,10 +5061,11 @@ const submitForm = async () => {
           // UEFI 固件兼容模式（ARM 专用）
           if (form.arch === 'aarch64') {
             editPayload.firmware_compat = !!form.firmware_compat
-            editPayload.direct_boot = form.direct_boot_enabled
-              ? { enabled: true, cmdline: form.direct_boot_cmdline || '' }
-              : { enabled: false }
           }
+          // 直接内核引导（全架构可用）
+          editPayload.direct_boot = form.direct_boot_enabled
+            ? { enabled: true, cmdline: form.direct_boot_cmdline || '' }
+            : { enabled: false }
           // 硬件直通设备：仅在管理员修改后发送
           if (isAdmin.value && form.host_devices_touched) {
             editPayload.host_devices = form.host_devices
@@ -5468,7 +5469,7 @@ const submitForm = async () => {
             host_devices: form.host_devices,
             extra_nics: nicsPayload.extraNics,
             firmware_compat: form.arch === 'aarch64' && form.firmware_compat ? true : undefined,
-            direct_boot: form.arch === 'aarch64' && form.direct_boot_enabled ? { enabled: true, cmdline: form.direct_boot_cmdline || '' } : undefined,
+            direct_boot: form.direct_boot_enabled ? { enabled: true, cmdline: form.direct_boot_cmdline || '' } : undefined,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {

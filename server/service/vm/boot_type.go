@@ -94,6 +94,23 @@ func SetVMDirectBoot(name string, cfg *vm_xml.DirectBootConfig) error {
 		updatedXML = vm_xml.RemoveDirectBootFromDomainXML(xmlResult.Stdout)
 	} else {
 		// 启用直接内核引导
+		// 如果未指定 kernel 路径，从 VM 的 CDROM ISO 自动提取
+		if cfg.Kernel == "" {
+			isoPath := vm_xml.ParseFirstCDROMISOPath(xmlResult.Stdout)
+			if isoPath == "" {
+				return fmt.Errorf("直接内核引导需要指定 kernel 路径或虚拟机需挂载 ISO")
+			}
+			kernel, initrd, extractErr := vm_xml.ExtractKernelFromISO(name, isoPath)
+			if extractErr != nil {
+				return fmt.Errorf("从 ISO 提取内核失败: %w", extractErr)
+			}
+			cfg = &vm_xml.DirectBootConfig{
+				Enabled: true,
+				Kernel:  kernel,
+				Initrd:  initrd,
+				Cmdline: cfg.Cmdline,
+			}
+		}
 		updatedXML, err = vm_xml.ApplyDirectBootToDomainXML(xmlResult.Stdout, cfg)
 		if err != nil {
 			return err

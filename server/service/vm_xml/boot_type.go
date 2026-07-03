@@ -692,3 +692,20 @@ func ExtractKernelFromISO(vmName, isoPath string) (kernel, initrd string, err er
 
 	return kernel, initrd, nil
 }
+
+// ParseFirstCDROMISOPath 从 domain XML 中提取第一个 CDROM 的 ISO 路径。
+func ParseFirstCDROMISOPath(xmlContent string) string {
+	cdromRegexp := regexp.MustCompile(`(?s)<disk[^>]*device=['"]cdrom['"][^>]*>.*?</disk>`)
+	sourceRegexp := regexp.MustCompile(`<source[^>]*file=['"]([^'"]+)['"]`)
+
+	matches := cdromRegexp.FindAllString(xmlContent, -1)
+	for _, diskBlock := range matches {
+		if m := sourceRegexp.FindStringSubmatch(diskBlock); len(m) >= 2 {
+			path := strings.TrimSpace(m[1])
+			if path != "" {
+				return path
+			}
+		}
+	}
+	return ""
+}
