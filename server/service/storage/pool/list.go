@@ -21,6 +21,8 @@ func ListStoragePools() ([]HostStoragePoolInfo, error) {
 	dfUsage := readDFUsage()
 	aliases := readDeviceAliasMap()
 	configs := loadHostStoragePoolConfigs()
+	// 过滤掉 loop 设备（如 /dev/loop*），它们不是物理磁盘
+	devices = filterNonPhysical(devices)
 	pools := buildStoragePoolTree(devices, mounts, dfUsage, aliases, configs)
 
 	// 注入 LVM VG 层级
@@ -97,6 +99,31 @@ func readLSBLKDevices() ([]lsblkDevice, error) {
 		return nil, fmt.Errorf("解析硬盘列表失败: %w", err)
 	}
 	return out.BlockDevices, nil
+}
+
+// filterNonPhysical 递归过滤掉 loop、rom、ram 等非物理磁盘设备及其子设备。
+func filterNonPhysical(devices []lsblkDevice) []lsblkDevice {
+	result := make([]lsblkDevice, 0, len(devices))
+	for _, dev := range devices {
+		devType := strings.ToLower(dev.Type)
+		nameLower := strings.ToLower(dev.Name)
+		// 跳过 loop 设备（如 /dev/loop*）
+		if devType == "loop" || strings.HasPrefix(nameLower, "loop") {
+			continue
+		}
+		// 跳过 rom 设备（光驱等）
+		if devType == "rom" {
+			continue
+		}
+		// 跳过内存盘设备
+		if strings.HasPrefix(nameLower, "ram") || strings.HasPrefix(nameLower, "zram") {
+			continue
+		}
+		// 递归过滤子设备
+		dev.Children = filterNonPhysical(dev.Children)
+		result = append(result, dev)
+	}
+	return result
 }
 
 func readFindmntMap() map[string]findmntInfo {
