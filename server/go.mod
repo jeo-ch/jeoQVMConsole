@@ -1,6 +1,6 @@
 module kvm_console
 
-go 1.25.4
+go 1.26.0
 
 require (
 	github.com/digitalocean/go-libvirt v0.0.0-20260217163227-273eaa321819
