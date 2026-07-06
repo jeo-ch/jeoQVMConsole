@@ -356,6 +356,16 @@ func SetVMPAEConfig(name string, enabled bool) error {
 	return vmpkg.SetVMPAEConfig(name, enabled)
 }
 
+// ── KVM Features ──
+
+func SetVMKVMHidden(name string, enabled bool) error {
+	return vmpkg.SetVMKVMHidden(name, enabled)
+}
+
+func SetVMVendorID(name string, vendorID string) error {
+	return vmpkg.SetVMVendorID(name, vendorID)
+}
+
 // ── SMBIOS ──
 
 func SetVMSMBIOS1Config(name string, cfg *vm_xml.VMSMBIOS1Config) error {

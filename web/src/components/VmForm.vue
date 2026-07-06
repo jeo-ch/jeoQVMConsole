@@ -360,6 +360,30 @@
                   主要用于 x86 老系统或 32 位来宾的大内存兼容场景；非 x86 架构会自动忽略该设置
                 </div>
               </el-form-item>
+              <el-form-item label="隐藏 KVM 标志">
+                <div class="advanced-field-row">
+                  <el-switch v-model="form.kvm_hidden" active-text="启用" inactive-text="关闭" />
+                  <el-tooltip content="启用后在 features 中注入 &lt;kvm&gt;&lt;hidden state='on'/&gt;&lt;/kvm&gt;，让虚拟机更难被检测为 KVM 虚拟化环境" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  用于规避部分软件/游戏的反虚拟化检测
+                </div>
+              </el-form-item>
+              <el-form-item label="Vendor ID 伪装">
+                <div class="advanced-field-row">
+                  <el-input v-model="form.vendor_id" placeholder="留空不伪装，如: AuthenticAMD" style="width: 280px;" clearable />
+                  <el-tooltip content="在 Hyper-V enlightenments 中注入 &lt;vendor_id state='on' value='...'/&gt;，伪装 CPU 厂商 ID" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  常用于绕过特定软件（如 N 卡驱动）的虚拟化检测；仅 x86_64 架构生效
+                </div>
+              </el-form-item>
               <el-form-item label="CPU 拓扑">
                 <el-select v-model="form.cpu_topology_mode" style="width: 280px;" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'">
                   <el-option v-for="item in cpuTopologyModeOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -1716,6 +1740,30 @@
                 <div class="form-tip">
                   <el-icon><InfoFilled /></el-icon>
                   主要用于 x86 老系统或 32 位来宾的大内存兼容场景；非 x86 架构会自动忽略该设置
+                </div>
+              </el-form-item>
+              <el-form-item label="隐藏 KVM 标志">
+                <div class="advanced-field-row">
+                  <el-switch v-model="form.kvm_hidden" active-text="启用" inactive-text="关闭" />
+                  <el-tooltip content="启用后在 features 中注入 &lt;kvm&gt;&lt;hidden state='on'/&gt;&lt;/kvm&gt;，让虚拟机更难被检测为 KVM 虚拟化环境" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  用于规避部分软件/游戏的反虚拟化检测
+                </div>
+              </el-form-item>
+              <el-form-item label="Vendor ID 伪装">
+                <div class="advanced-field-row">
+                  <el-input v-model="form.vendor_id" placeholder="留空不伪装，如: AuthenticAMD" style="width: 280px;" clearable />
+                  <el-tooltip content="在 Hyper-V enlightenments 中注入 &lt;vendor_id state='on' value='...'/&gt;，伪装 CPU 厂商 ID" placement="top" effect="dark">
+                    <el-icon class="help-icon"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  常用于绕过特定软件（如 N 卡驱动）的虚拟化检测；仅 x86_64 架构生效
                 </div>
               </el-form-item>
               <el-form-item label="CPU 拓扑">
@@ -3569,6 +3617,9 @@ const form = reactive({
   // 直接内核引导（ARM 专用）
   direct_boot_enabled: false,
   direct_boot_cmdline: '',
+  // KVM 虚拟化特性
+  kvm_hidden: false,          // 隐藏 KVM 标志
+  vendor_id: '',               // Hyper-V vendor_id 伪装（自定义值）
   // 编辑模式 - 新增磁盘
   add_disks: [],
   // 创建模式 - 额外磁盘
@@ -3787,6 +3838,8 @@ const captureEditFormSnapshot = () => {
     video_model: form.video_model || '',
     cpu_limit_percent: buildCPULimitPercentPayload(),
     cpu_affinity: isAdmin.value ? (form.cpu_affinity || '').trim() : null,
+    kvm_hidden: form.kvm_hidden,
+    vendor_id: form.vendor_id || '',
   }
 }
 
@@ -4350,6 +4403,8 @@ const applyEditVmDetail = (detail, row = {}) => {
   form.firmware_compat = !!detail.firmware_compat
   form.direct_boot_enabled = !!(detail.direct_boot && detail.direct_boot.enabled)
   form.direct_boot_cmdline = (detail.direct_boot && detail.direct_boot.cmdline) || ''
+  form.kvm_hidden = !!detail.kvm_hidden
+  form.vendor_id = detail.vendor_id || ''
   form.video_model = detail.video_model || getRecommendedVideoModel(detail.os_type || 'linux')
   form.cpu_topology_mode = detail.cpu_topology_mode || 'auto'
   form.boot_order = detail.boot_order && detail.boot_order.length > 0 ? [...detail.boot_order] : ['hd']
@@ -5032,6 +5087,14 @@ const submitForm = async () => {
           if (!!form.pae !== snap.pae) {
             editPayload.pae = !!form.pae
           }
+          // KVM 虚拟化特性：仅变化时发送
+          if (form.kvm_hidden !== snap.kvm_hidden) {
+            editPayload.kvm_hidden = form.kvm_hidden
+          }
+          const curVendorID = form.vendor_id || ''
+          if (curVendorID !== snap.vendor_id) {
+            editPayload.vendor_id = curVendorID
+          }
           // RTC 配置：任一字段变化即一起发送
           const curRtcStartdate = normalizeRTCStartDate(form.rtc_startdate)
           if (form.rtc_offset !== snap.rtc_offset || curRtcStartdate !== snap.rtc_startdate) {
@@ -5187,6 +5250,8 @@ const submitForm = async () => {
                 read_iops_sec: form.system_disk_iops_read,
                 write_iops_sec: form.system_disk_iops_write,
               } : undefined,
+              kvm_hidden: form.kvm_hidden || undefined,
+              vendor_id: form.vendor_id || undefined,
             }
             const cpuLimitPercent = buildCPULimitPercentPayload()
             if (cpuLimitPercent !== undefined) { importPayload.cpu_limit_percent = cpuLimitPercent }
@@ -5229,6 +5294,8 @@ const submitForm = async () => {
             cpu_topology_mode: form.cpu_topology_mode,
             first_boot_reboot_mode: form.first_boot_reboot_mode,
             extra_nics: nicsPayload.extraNics,
+            kvm_hidden: form.kvm_hidden || undefined,
+            vendor_id: form.vendor_id || undefined,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {
@@ -5290,6 +5357,8 @@ const submitForm = async () => {
               static_ip: isOpenWrtTemplate.value ? form.static_ip : undefined,
               gateway: isOpenWrtTemplate.value ? form.gateway : undefined,
               dns: isOpenWrtTemplate.value ? form.dns : undefined,
+              kvm_hidden: form.kvm_hidden || undefined,
+              vendor_id: form.vendor_id || undefined,
             }
             const cpuLimitPercent = buildCPULimitPercentPayload()
             if (cpuLimitPercent !== undefined) { batchPayload.cpu_limit_percent = cpuLimitPercent }
@@ -5357,6 +5426,8 @@ const submitForm = async () => {
             static_ip: isOpenWrtTemplate.value ? form.static_ip : undefined,
             gateway: isOpenWrtTemplate.value ? form.gateway : undefined,
             dns: isOpenWrtTemplate.value ? form.dns : undefined,
+            kvm_hidden: form.kvm_hidden || undefined,
+            vendor_id: form.vendor_id || undefined,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {
@@ -5470,6 +5541,8 @@ const submitForm = async () => {
             extra_nics: nicsPayload.extraNics,
             firmware_compat: form.arch === 'aarch64' && form.firmware_compat ? true : undefined,
             direct_boot: form.direct_boot_enabled ? { enabled: true, cmdline: form.direct_boot_cmdline || '' } : undefined,
+            kvm_hidden: form.kvm_hidden || undefined,
+            vendor_id: form.vendor_id || undefined,
           }
           const cpuLimitPercent = buildCPULimitPercentPayload()
           if (cpuLimitPercent !== undefined) {

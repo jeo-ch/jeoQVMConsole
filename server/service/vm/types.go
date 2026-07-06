@@ -105,6 +105,8 @@ type VmDetail struct {
 	PCIERootPorts          int                           `json:"pcie_root_ports"`       // pcie-root-port 数量（仅 q35/virt 机型）
 	FirmwareCompat         bool                          `json:"firmware_compat"`       // UEFI 固件兼容模式（ARM 专用）
 	DirectBoot             *vm_xml.DirectBootConfig      `json:"direct_boot,omitempty"` // 直接内核引导配置
+	KVMHidden              bool                          `json:"kvm_hidden"`            // 隐藏 KVM 标志
+	VendorID               string                        `json:"vendor_id"`             // Hyper-V vendor_id 伪装值
 }
 
 // VmStats 虚拟机资源使用统计

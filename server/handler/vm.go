@@ -570,6 +570,28 @@ func EditVm(c *gin.Context) {
 		}
 	}
 
+	// 修改 KVM 隐藏标志
+	if req.KVMHidden != nil {
+		if err := service.SetVMKVMHidden(name, *req.KVMHidden); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "设置 KVM 隐藏标志失败: " + err.Error(),
+			})
+			return
+		}
+	}
+
+	// 修改 Hyper-V vendor_id 伪装
+	if req.VendorID != nil {
+		if err := service.SetVMVendorID(name, *req.VendorID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "设置 vendor_id 失败: " + err.Error(),
+			})
+			return
+		}
+	}
+
 	// 修改自动启动
 	if req.Remark != nil {
 		if err := service.SetVMRemark(name, *req.Remark); err != nil {

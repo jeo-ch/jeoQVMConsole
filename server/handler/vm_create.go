@@ -56,6 +56,8 @@ type CreateVmRequest struct {
 	PCIERootPorts   int                               `json:"pcie_root_ports,omitempty"` // q35 预留 pcie-root-port 数量
 	FirmwareCompat  *bool                             `json:"firmware_compat,omitempty"` // UEFI 固件兼容模式（ARM 专用，使用旧版 EDK2）
 	DirectBoot      *service.DirectBootConfig         `json:"direct_boot,omitempty"`     // 直接内核引导配置
+	KVMHidden       *bool                             `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志
+	VendorID        string                            `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装
 	ExtraDisks      []struct {
 		Size          int    `json:"size"`
 		Format        string `json:"format"`
@@ -149,6 +151,8 @@ func CreateVm(c *gin.Context) {
 		PCIERootPorts:   req.PCIERootPorts,
 		FirmwareCompat:  req.FirmwareCompat,
 		DirectBoot:      req.DirectBoot,
+		KVMHidden:       req.KVMHidden,
+		VendorID:        req.VendorID,
 	}
 
 	// 额外磁盘
@@ -299,8 +303,10 @@ type ImportDiskByPathRequest struct {
 	SecurityGroupID  uint                              `json:"security_group_id"`
 	ExtraNics        []service.AddVMInterfaceRequest   `json:"extra_nics"`
 	ExtraImportDisks []vmimport.ExtraImportDiskEntry   `json:"extra_import_disks"`
-	SystemDiskIOPS   *service.DiskIOPSTune             `json:"system_disk_iops"`   // 系统盘 IOPS 限制（仅管理员）
-	StartAfterImport *bool                             `json:"start_after_import"` // 导入完成后是否开启虚拟机，不传默认 true
+	SystemDiskIOPS   *service.DiskIOPSTune             `json:"system_disk_iops"`     // 系统盘 IOPS 限制（仅管理员）
+	StartAfterImport *bool                             `json:"start_after_import"`   // 导入完成后是否开启虚拟机，不传默认 true
+	KVMHidden        *bool                             `json:"kvm_hidden,omitempty"` // 隐藏 KVM 标志
+	VendorID         string                            `json:"vendor_id,omitempty"`  // Hyper-V vendor_id 伪装
 }
 
 // AdminImportDisk 管理员通过绝对路径导入磁盘创建虚拟机（异步任务）
@@ -387,6 +393,8 @@ func AdminImportDisk(c *gin.Context) {
 		Username:         usernameStr,
 		SystemDiskIOPS:   req.SystemDiskIOPS,
 		StartAfterImport: startAfterImport,
+		KVMHidden:        req.KVMHidden,
+		VendorID:         req.VendorID,
 	}
 
 	task, err := taskqueue.SubmitWithStruct(model.TaskTypeImportDisk, params, usernameStr)

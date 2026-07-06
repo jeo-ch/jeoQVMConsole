@@ -140,6 +140,22 @@ func importVMWindowsDefine(params *ImportVMParams, destDiskPath, format string, 
 	}
 	vmXML = vm_xml.ApplyVMVideoModelToDomainXML(vmXML, params.VideoModel, "windows")
 	vmXML = vm_xml.ApplyWindowsGuestOptimizationsToDomainXML(vmXML)
+	// 隐藏 KVM 标志
+	if params.KVMHidden != nil {
+		vmXML, err = vm_xml.ApplyKVMHiddenToDomainXML(vmXML, params.KVMHidden)
+		if err != nil {
+			_ = os.Remove(destDiskPath)
+			return err
+		}
+	}
+	// Hyper-V vendor_id 伪装
+	if params.VendorID != "" {
+		vmXML, err = vm_xml.ApplyVendorIDToHyperVBlock(vmXML, params.VendorID)
+		if err != nil {
+			_ = os.Remove(destDiskPath)
+			return err
+		}
+	}
 	topoVCPU := service.EffectiveTopologyVCPU(params.VCPU, params.MaxVCPU)
 	vmXML = service.ApplyCPUTopologyModeToDomainXML(vmXML, params.CPUTopologyMode, "windows", topoVCPU)
 	vmXML = service.ApplyVMCPULimitToDomainXML(vmXML, params.VCPU, params.CPULimitPercent)
@@ -315,6 +331,22 @@ func importDiskByPathWindowsDefine(params *ImportDiskByPathParams, destDiskPath,
 	}
 	vmXML = vm_xml.ApplyVMVideoModelToDomainXML(vmXML, params.VideoModel, "windows")
 	vmXML = vm_xml.ApplyWindowsGuestOptimizationsToDomainXML(vmXML)
+	// 隐藏 KVM 标志
+	if params.KVMHidden != nil {
+		vmXML, err = vm_xml.ApplyKVMHiddenToDomainXML(vmXML, params.KVMHidden)
+		if err != nil {
+			_ = os.Remove(destDiskPath)
+			return err
+		}
+	}
+	// Hyper-V vendor_id 伪装
+	if params.VendorID != "" {
+		vmXML, err = vm_xml.ApplyVendorIDToHyperVBlock(vmXML, params.VendorID)
+		if err != nil {
+			_ = os.Remove(destDiskPath)
+			return err
+		}
+	}
 	topoVCPU := service.EffectiveTopologyVCPU(params.VCPU, params.MaxVCPU)
 	vmXML = service.ApplyCPUTopologyModeToDomainXML(vmXML, params.CPUTopologyMode, "windows", topoVCPU)
 	vmXML = service.ApplyVMCPULimitToDomainXML(vmXML, params.VCPU, params.CPULimitPercent)

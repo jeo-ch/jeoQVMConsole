@@ -64,6 +64,8 @@ type CreateVMParams struct {
 	PCIERootPorts   int                            `json:"pcie_root_ports,omitempty"` // q35 机型预留 pcie-root-port 数量，0 表示使用默认 6
 	FirmwareCompat  *bool                          `json:"firmware_compat,omitempty"` // UEFI 固件兼容模式（ARM 专用，使用旧版 EDK2）
 	DirectBoot      *vm_xml.DirectBootConfig       `json:"direct_boot,omitempty"`     // 直接内核引导配置
+	KVMHidden       *bool                          `json:"kvm_hidden,omitempty"`      // 隐藏 KVM 标志（<kvm><hidden state='on'/></kvm>）
+	VendorID        string                         `json:"vendor_id,omitempty"`       // Hyper-V vendor_id 伪装（空表示不设置）
 }
 
 // ExtraDiskParam is now defined in storage/disk package; alias in disk_compat.go.
@@ -492,6 +494,24 @@ func CreateVM(params *CreateVMParams, progressFn func(int, string)) (string, err
 	// UEFI 固件兼容模式（ARM 专用，使用旧版 EDK2 解决 UOS 等系统的引导兼容性问题）
 	if params.FirmwareCompat != nil && *params.FirmwareCompat {
 		vmXML, err = vm_xml.ApplyFirmwareCompatToDomainXML(params.Name, vmXML, params.FirmwareCompat)
+		if err != nil {
+			_ = os.Remove(diskPath)
+			return "", err
+		}
+	}
+
+	// 隐藏 KVM 标志（在 <features> 中注入 <kvm><hidden state='on'/></kvm>）
+	if params.KVMHidden != nil {
+		vmXML, err = vm_xml.ApplyKVMHiddenToDomainXML(vmXML, params.KVMHidden)
+		if err != nil {
+			_ = os.Remove(diskPath)
+			return "", err
+		}
+	}
+
+	// Hyper-V vendor_id 伪装（在 <hyperv> 中注入 <vendor_id state='on' value='...'/>）
+	if params.VendorID != "" {
+		vmXML, err = vm_xml.ApplyVendorIDToHyperVBlock(vmXML, params.VendorID)
 		if err != nil {
 			_ = os.Remove(diskPath)
 			return "", err
