@@ -250,8 +250,8 @@ func Setup() *gin.Engine {
 			{
 				tpl.GET("/list", handler.GetTemplateList)
 				tpl.POST("/prepare", handler.PrepareTemplate)
-				tpl.POST("/upload/init", handler.TemplateUploadInit)       // 模板包分片上传-初始化/秒传
-				tpl.POST("/upload/chunk", handler.TemplateUploadChunk)     // 模板包分片上传-单片
+				tpl.POST("/upload/init", handler.TemplateUploadInit)         // 模板包分片上传-初始化/秒传
+				tpl.POST("/upload/chunk", handler.TemplateUploadChunk)       // 模板包分片上传-单片
 				tpl.POST("/upload/complete", handler.TemplateUploadComplete) // 模板包分片上传-完成
 				tpl.DELETE("/upload", handler.TemplateUploadCancel)          // 清理已上传的模板临时包
 				tpl.POST("/import", handler.ImportTemplateHandler)
@@ -462,12 +462,12 @@ func Setup() *gin.Engine {
 				self.GET("/storage/info", middleware.ElasticCloudOnlyMiddleware(), handler.GetUserStorageInfo)                              // 存储池信息
 				self.POST("/storage/init", middleware.ElasticCloudOnlyMiddleware(), handler.InitUserStorageHandler)                         // 初始化存储池
 				self.GET("/storage/files/:category", middleware.ElasticCloudOnlyMiddleware(), handler.ListUserStorageFiles)                 // 列出文件
-				self.POST("/storage/upload/init", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadInit)         // 分片上传-初始化/秒传
-				self.POST("/storage/upload/chunk", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadChunk)       // 分片上传-单片
-				self.POST("/storage/upload/complete", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadComplete) // 分片上传-完成校验
-				self.GET("/storage/upload/status", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadStatus)      // 分片上传-进度查询(续传)
-				self.DELETE("/storage/upload", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadCancel)         // 分片上传-取消
-				self.GET("/storage/upload/pending", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadPending)   // 分片上传-未完成会话(主动恢复)
+				self.POST("/storage/upload/init", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadInit)                   // 分片上传-初始化/秒传
+				self.POST("/storage/upload/chunk", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadChunk)                 // 分片上传-单片
+				self.POST("/storage/upload/complete", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadComplete)           // 分片上传-完成校验
+				self.GET("/storage/upload/status", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadStatus)                // 分片上传-进度查询(续传)
+				self.DELETE("/storage/upload", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadCancel)                    // 分片上传-取消
+				self.GET("/storage/upload/pending", middleware.ElasticCloudOnlyMiddleware(), handler.UserStorageUploadPending)              // 分片上传-未完成会话(主动恢复)
 				self.DELETE("/storage/file/:category/:filename", middleware.ElasticCloudOnlyMiddleware(), handler.DeleteUserStorageFile)    // 删除文件
 				self.GET("/storage/download/:category/:filename", middleware.ElasticCloudOnlyMiddleware(), handler.DownloadUserStorageFile) // 下载文件
 				self.GET("/storage/isos", middleware.ElasticCloudOnlyMiddleware(), handler.GetUserISOsForVM)                                // 用户ISO列表（VM创建用）
@@ -491,6 +491,10 @@ func Setup() *gin.Engine {
 				host.PUT("/ksm", middleware.AdminMiddleware(), handler.UpdateHostKSMProfile)
 				host.GET("/zram", middleware.AdminMiddleware(), handler.GetHostZRAMStatus)
 				host.PUT("/zram", middleware.AdminMiddleware(), handler.UpdateHostZRAMProfile)
+				// 硬件直通
+				host.GET("/hardware-passthrough/status", middleware.AdminMiddleware(), handler.GetHardwarePassthroughStatus)
+				host.POST("/hardware-passthrough/enable-iommu", middleware.AdminMiddleware(), handler.EnableIommu)
+				host.POST("/hardware-passthrough/load-vfio", middleware.AdminMiddleware(), handler.LoadVfioPci)
 				// 硬件直通设备管理
 				host.GET("/passthrough", handler.GetPassthroughDevices)
 				host.POST("/passthrough/bind", middleware.AdminMiddleware(), handler.BindPCIDevice)

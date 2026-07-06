@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"kvm_console/logger"
 	"kvm_console/utils"
 )
 
@@ -260,12 +261,19 @@ func BindPCIDeviceToVfio(pciAddress string) error {
 		return fmt.Errorf("无法确定设备 %s 的 IOMMU 组，请确认 IOMMU 已启用", pciAddress)
 	}
 
-	// 安全检查：拒绝绑定系统显示设备（解除绑定会导致显示崩溃）
+	// 安全检查：仅当显示设备是宿主机的活动帧缓冲控制台时才拒绝绑定
+	// 若存在多个 VGA 设备（如 BMC 显卡 + 核显），允许直通非控制台使用的 GPU
 	classResult := utils.ExecShell(fmt.Sprintf(
 		"cat /sys/bus/pci/devices/%s/class 2>/dev/null", pciAddress))
 	classCode := strings.TrimPrefix(strings.TrimSpace(classResult.Stdout), "0x")
 	if strings.HasPrefix(classCode, "03") {
-		return fmt.Errorf("设备 %s 是显示控制器，直通可能导致宿主机显示崩溃，已拒绝操作", pciAddress)
+		if isDeviceActiveFramebuffer(pciAddress) {
+			return fmt.Errorf("设备 %s 是当前宿主机活动的帧缓冲控制台，直通会导致显示崩溃，已拒绝操作", pciAddress)
+		}
+		// 非活动控制台的 VGA 设备允许直通，但需要确保 vfio-pci 能接管
+		logger.App.Info("检测到非活动控制台的显示设备，允许尝试 vfio-pci 绑定",
+			"pci_address", pciAddress,
+			"class_code", classCode)
 	}
 
 	vendorResult := utils.ExecShell(fmt.Sprintf("cat /sys/bus/pci/devices/%s/vendor 2>/dev/null", utils.ShellSingleQuote(pciAddress)))
@@ -342,10 +350,39 @@ func UnbindPCIDeviceFromVfio(pciAddress string) error {
 
 // ValidatePCIPassthrough 验证 PCI 设备是否可直通
 func ValidatePCIPassthrough(pciAddress string) error {
-	// 检查 IOMMU 是否启用
-	iommuCheck := utils.ExecShell("ls /sys/class/iommu/*/intel-iommu/version 2>/dev/null || ls /sys/class/iommu/*/amd-iommu/version 2>/dev/null")
-	if iommuCheck.Error != nil || strings.TrimSpace(iommuCheck.Stdout) == "" {
-		return fmt.Errorf("IOMMU 未启用，请在内核启动参数中添加 intel_iommu=on 或 amd_iommu=on 并重启")
+	// 检查 IOMMU 是否启用（多种方式，兼容 Intel/AMD/ARM 不同 sysfs 路径）
+	iommuOk := false
+	// 方法1: Intel IOMMU version 文件
+	intelCheck := utils.ExecShellQuiet("cat /sys/class/iommu/*/intel-iommu/version 2>/dev/null")
+	if intelCheck.Error == nil && strings.TrimSpace(intelCheck.Stdout) != "" {
+		iommuOk = true
+	}
+	// 方法2: AMD IOMMU（可能有 version/cap/features 等文件）
+	if !iommuOk {
+		amdCheck := utils.ExecShellQuiet("ls /sys/class/iommu/*/amd-iommu/ 2>/dev/null | head -1")
+		if amdCheck.Error == nil && strings.TrimSpace(amdCheck.Stdout) != "" {
+			iommuOk = true
+		}
+	}
+	// 方法3: IOMMU 组存在（内核已启用 IOMMU 的通用标志）
+	if !iommuOk {
+		groupsCheck := utils.ExecShellQuiet("ls /sys/kernel/iommu_groups/ 2>/dev/null | wc -l")
+		if groupsCheck.Error == nil {
+			count := strings.TrimSpace(groupsCheck.Stdout)
+			if count != "" && count != "0" {
+				iommuOk = true
+			}
+		}
+	}
+	// 方法4: dmesg 日志
+	if !iommuOk {
+		dmesgCheck := utils.ExecShellQuiet("dmesg 2>/dev/null | grep -qiE 'amd-vi|intel-iommu.*enabled|DMAR.*IOMMU' && echo ok || echo fail")
+		if strings.TrimSpace(dmesgCheck.Stdout) == "ok" {
+			iommuOk = true
+		}
+	}
+	if !iommuOk {
+		return fmt.Errorf("IOMMU 未启用，请确保 BIOS 已开启 Intel VT-d 或 AMD IOMMU，并在旧内核上添加 intel_iommu=on 或 amd_iommu=on 内核参数后重启")
 	}
 
 	// 检查 vfio-pci 驱动
@@ -595,6 +632,30 @@ func getPCIIOMMUGroup(pciAddress string) int {
 	return num
 }
 
+// isDeviceActiveFramebuffer 检查 PCI 显示设备是否为宿主机当前活动的帧缓冲控制台
+// 只有被 fb0 使用的 GPU 才是关键显示设备，其他 GPU（如 BMC 服务器上的核显）可安全直通
+func isDeviceActiveFramebuffer(pciAddress string) bool {
+	// 获取当前活动的 framebuffer 控制台对应的 DRM card
+	fbDRMPath := utils.ExecShell("readlink -f /sys/class/graphics/fb0/device/drm/card* 2>/dev/null")
+	fbDRM := strings.TrimSpace(fbDRMPath.Stdout)
+	if fbDRM == "" {
+		// 没有 fb0，无法判断，保守拒绝
+		return true
+	}
+
+	// 获取该 PCI 设备对应的 DRM card 路径
+	pciDRMPath := utils.ExecShell(fmt.Sprintf(
+		"readlink -f /sys/bus/pci/devices/%s/drm/card* 2>/dev/null", pciAddress))
+	pciDRM := strings.TrimSpace(pciDRMPath.Stdout)
+	if pciDRM == "" {
+		// 该 PCI 设备没有 DRM 输出，不是帧缓冲设备，可以直通
+		return false
+	}
+
+	// 比较两者的 DRM card 路径是否一致
+	return fbDRM == pciDRM
+}
+
 // isDeviceVfioBound 检查设备是否已绑定到 vfio-pci
 func isDeviceVfioBound(pciAddress string) bool {
 	result := utils.ExecShell(fmt.Sprintf(
@@ -609,7 +670,6 @@ func isPCIDevicePassthroughCapable(dev PCIDevice) bool {
 		"host bridge", "pci bridge",
 		"isa bridge", "smbus", "memory controller",
 		"raid", "raid bus controller",
-		"vga 显示控制器", "vga compatible controller",
 	}
 
 	for _, critical := range criticalClasses {

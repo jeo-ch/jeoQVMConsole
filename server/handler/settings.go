@@ -18,8 +18,8 @@ import (
 	"kvm_console/model"
 	"kvm_console/service"
 	"kvm_console/service/storage/quota"
-	"kvm_console/utils"
 	"kvm_console/taskqueue"
+	"kvm_console/utils"
 )
 
 // SettingsResponse 设置响应
@@ -88,9 +88,11 @@ type SettingsResponse struct {
 	NetworkWaitOnlineDisabled bool   `json:"network_wait_online_disabled"`
 	NetworkWaitOnlineSummary  string `json:"network_wait_online_summary"`
 	// 安全防护
-	SessionFingerprintEnabled bool `json:"session_fingerprint_enabled"`
-	RequestFilterEnabled      bool `json:"request_filter_enabled"`
+	SessionFingerprintEnabled  bool `json:"session_fingerprint_enabled"`
+	RequestFilterEnabled       bool `json:"request_filter_enabled"`
 	PasswordBreachCheckEnabled bool `json:"password_breach_check_enabled"`
+	// 硬件直通
+	HardwarePassthroughEnabled bool `json:"hardware_passthrough_enabled"`
 }
 
 // UpdateSettingsRequest 更新设置请求
@@ -154,9 +156,11 @@ type UpdateSettingsRequest struct {
 	// 网络等待就绪检测
 	NetworkWaitOnlineDisabled *bool `json:"network_wait_online_disabled"`
 	// 安全防护
-	SessionFingerprintEnabled *bool `json:"session_fingerprint_enabled"`
-	RequestFilterEnabled      *bool `json:"request_filter_enabled"`
+	SessionFingerprintEnabled  *bool `json:"session_fingerprint_enabled"`
+	RequestFilterEnabled       *bool `json:"request_filter_enabled"`
 	PasswordBreachCheckEnabled *bool `json:"password_breach_check_enabled"`
+	// 硬件直通
+	HardwarePassthroughEnabled *bool `json:"hardware_passthrough_enabled"`
 }
 
 type TestSMTPRequest struct {
@@ -187,9 +191,9 @@ func GetPublicSettings(c *gin.Context) {
 		"code":    200,
 		"message": "ok",
 		"data": PublicSettingsResponse{
-			SiteTitle:                 siteTitle,
+			SiteTitle:                  siteTitle,
 			PasswordBreachCheckEnabled: config.GlobalConfig.PasswordBreachCheckEnabled,
-			SpiceEnabledByDefault:     config.GlobalConfig.SpiceEnabledByDefault,
+			SpiceEnabledByDefault:      config.GlobalConfig.SpiceEnabledByDefault,
 		},
 	})
 }
@@ -272,6 +276,7 @@ func GetSettings(c *gin.Context) {
 			SessionFingerprintEnabled:             cfg.SessionFingerprintEnabled,
 			RequestFilterEnabled:                  cfg.RequestFilterEnabled,
 			PasswordBreachCheckEnabled:            cfg.PasswordBreachCheckEnabled,
+			HardwarePassthroughEnabled:            cfg.HardwarePassthroughEnabled,
 		},
 	})
 }
@@ -579,6 +584,9 @@ func UpdateSettings(c *gin.Context) {
 	}
 	if req.PasswordBreachCheckEnabled != nil {
 		cfg.PasswordBreachCheckEnabled = *req.PasswordBreachCheckEnabled
+	}
+	if req.HardwarePassthroughEnabled != nil {
+		cfg.HardwarePassthroughEnabled = *req.HardwarePassthroughEnabled
 	}
 
 	if cfg.AutoPortStart >= cfg.AutoPortEnd {

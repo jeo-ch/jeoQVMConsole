@@ -301,3 +301,49 @@ func GetHostCPUCores(c *gin.Context) {
 		},
 	})
 }
+
+// GetHardwarePassthroughStatus 获取硬件直通状态
+func GetHardwarePassthroughStatus(c *gin.Context) {
+	status := service.GetHardwarePassthroughStatus()
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "ok",
+		"data":    status,
+	})
+}
+
+// EnableIommu 一键开启 IOMMU（写入 grub 参数并 update-grub）
+func EnableIommu(c *gin.Context) {
+	if !requireHighRiskVerification(c, "enable_host_iommu") {
+		return
+	}
+
+	result := service.EnableIommuInGrub()
+	code := 200
+	if !result.Success {
+		code = 400
+	}
+	c.JSON(code, gin.H{
+		"code":    code,
+		"message": result.Message,
+		"data":    result,
+	})
+}
+
+// LoadVfioPci 一键加载 vfio-pci 模块
+func LoadVfioPci(c *gin.Context) {
+	if !requireHighRiskVerification(c, "load_vfio_pci") {
+		return
+	}
+
+	result := service.LoadVfioPciModule()
+	code := 200
+	if !result.Success {
+		code = 400
+	}
+	c.JSON(code, gin.H{
+		"code":    code,
+		"message": result.Message,
+		"data":    result,
+	})
+}

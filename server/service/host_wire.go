@@ -43,6 +43,12 @@ type HostZRAMStatus = hostpkg.HostZRAMStatus
 type HostZRAMRuntimeConfig = hostpkg.HostZRAMRuntimeConfig
 type HostZRAMPersistentConfig = hostpkg.HostZRAMPersistentConfig
 type HostDiskInfo = hostpkg.HostDiskInfo
+type IgpuPassthroughStatus = hostpkg.HardwarePassthroughStatus
+type HardwarePassthroughStatus = hostpkg.HardwarePassthroughStatus
+type IgpuDeviceInfo = hostpkg.PassthroughDeviceInfo
+type PassthroughDeviceInfo = hostpkg.PassthroughDeviceInfo
+type IommuEnableResult = hostpkg.IommuEnableResult
+type VfioLoadResult = hostpkg.VfioLoadResult
 type MaintenanceModeTaskParams = hostpkg.MaintenanceModeTaskParams
 type MaintenanceModeTaskResult = hostpkg.MaintenanceModeTaskResult
 
@@ -200,4 +206,22 @@ func QueryHostStatsHistory(start, end time.Time) ([]model.HostStatsRecord, error
 
 func SetNetworkWaitOnlineDisabled(disabled bool) error {
 	return hostpkg.SetNetworkWaitOnlineDisabled(disabled)
+}
+
+// ── iGPU passthrough ──
+
+func GetIgpuPassthroughStatus() *hostpkg.HardwarePassthroughStatus {
+	return hostpkg.GetHardwarePassthroughStatus()
+}
+
+func GetHardwarePassthroughStatus() *hostpkg.HardwarePassthroughStatus {
+	return hostpkg.GetHardwarePassthroughStatus()
+}
+
+func EnableIommuInGrub() *hostpkg.IommuEnableResult {
+	return hostpkg.EnableIommuInGrub()
+}
+
+func LoadVfioPciModule() *hostpkg.VfioLoadResult {
+	return hostpkg.LoadVfioPciModule()
 }

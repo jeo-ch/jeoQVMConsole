@@ -130,6 +130,32 @@ export function updateHostZRAMProfile(data) {
   })
 }
 
+// 获取硬件直通状态
+export function getHardwarePassthroughStatus() {
+  return request({
+    url: '/host/hardware-passthrough/status',
+    method: 'get'
+  })
+}
+
+// 一键开启 IOMMU（写入 grub + update-grub）
+export function enableIommu() {
+  return request({
+    url: '/host/hardware-passthrough/enable-iommu',
+    method: 'post',
+    timeout: 60000
+  })
+}
+
+// 一键加载 vfio-pci 模块
+export function loadVfioPci() {
+  return request({
+    url: '/host/hardware-passthrough/load-vfio',
+    method: 'post',
+    timeout: 30000
+  })
+}
+
 // 获取 CPU 亲和性预设列表
 export function getCPUAffinityPresets() {
   return request({

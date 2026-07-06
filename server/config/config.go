@@ -169,6 +169,8 @@ type Config struct {
 	SessionFingerprintEnabled bool `json:"session_fingerprint_enabled"`
 	// 泄露密码检测开关（默认开启，关闭后跳过所有密码校验）
 	PasswordBreachCheckEnabled bool `json:"password_breach_check_enabled"`
+	// 硬件直通开关（默认关闭，开启后启用 IOMMU 和 vfio-pci 支持）
+	HardwarePassthroughEnabled bool `json:"hardware_passthrough_enabled"`
 }
 
 // GlobalConfig 全局配置实例
@@ -296,6 +298,7 @@ func Init() {
 		ErrorDetailInResponse:                 getEnvBool("KVM_ERROR_DETAIL_IN_RESPONSE", false),
 		SessionFingerprintEnabled:             getEnvBool("KVM_SESSION_FINGERPRINT_ENABLED", true),
 		PasswordBreachCheckEnabled:            getEnvBool("KVM_PASSWORD_BREACH_CHECK_ENABLED", true),
+		HardwarePassthroughEnabled:            getEnvBool("KVM_HARDWARE_PASSTHROUGH_ENABLED", false),
 		CORSAllowedOrigins:                    getEnv("KVM_CORS_ALLOWED_ORIGINS", ""),
 	}
 	// 解析可信代理列表
@@ -525,6 +528,11 @@ var PersistableKeys = []string{
 	"log_max_size_mb",
 	"log_max_backups",
 	"network_wait_online_disabled",
+	"session_fingerprint_enabled",
+	"request_filter_enabled",
+	"password_breach_check_enabled",
+	"igpu_passthrough_enabled",
+	"hardware_passthrough_enabled",
 }
 
 // keyToEnvVar 配置项到环境变量的映射
@@ -595,6 +603,11 @@ var keyToEnvVar = map[string]string{
 	"log_max_size_mb":                           "KVM_LOG_MAX_SIZE_MB",
 	"log_max_backups":                           "KVM_LOG_MAX_BACKUPS",
 	"network_wait_online_disabled":              "KVM_NETWORK_WAIT_ONLINE_DISABLED",
+	"session_fingerprint_enabled":               "KVM_SESSION_FINGERPRINT_ENABLED",
+	"request_filter_enabled":                    "KVM_REQUEST_FILTER_ENABLED",
+	"password_breach_check_enabled":             "KVM_PASSWORD_BREACH_CHECK_ENABLED",
+	"igpu_passthrough_enabled":                  "KVM_IGPU_PASSTHROUGH_ENABLED",
+	"hardware_passthrough_enabled":              "KVM_HARDWARE_PASSTHROUGH_ENABLED",
 }
 
 // LoadFromDB 从数据库加载持久化的设置覆盖当前配置
@@ -824,6 +837,8 @@ func (c *Config) LoadFromDB(settings map[string]string) {
 			c.RequestFilterEnabled = value != "false"
 		case "password_breach_check_enabled":
 			c.PasswordBreachCheckEnabled = value != "false"
+		case "hardware_passthrough_enabled":
+			c.HardwarePassthroughEnabled = value == "true"
 		case "api_max_body_size_mb":
 			if n, err := strconv.Atoi(value); err == nil && n > 0 {
 				c.APIMaxBodySizeMB = n
@@ -907,6 +922,7 @@ func (c *Config) ToSettingsMap() map[string]string {
 		"session_fingerprint_enabled":               strconv.FormatBool(c.SessionFingerprintEnabled),
 		"request_filter_enabled":                    strconv.FormatBool(c.RequestFilterEnabled),
 		"password_breach_check_enabled":             strconv.FormatBool(c.PasswordBreachCheckEnabled),
+		"hardware_passthrough_enabled":              strconv.FormatBool(c.HardwarePassthroughEnabled),
 	}
 }
 

@@ -470,6 +470,135 @@
             </el-form-item>
 
             <el-divider content-position="left">
+              <el-icon style="margin-right: 4px;"><Monitor /></el-icon>
+              硬件直通
+            </el-divider>
+
+            <el-alert
+              :title="hwPassthroughReady ? '硬件直通环境已就绪，可在硬件直通页面绑定设备到虚拟机。' : hwPassthroughStatus?.ready_message || '正在检测硬件直通状态...'"
+              :type="hwPassthroughReady ? 'success' : 'warning'"
+              :closable="false"
+              style="margin-bottom: 18px;"
+            />
+
+            <!-- CPU 虚拟化和 BIOS IOMMU 始终显示，用于诊断 -->
+            <el-form-item label="CPU 虚拟化">
+              <div class="host-setting-row">
+                <el-tag v-if="hwPassthroughStatus?.cpu_virt_flag" type="success" effect="plain">
+                  支持（{{ hwPassthroughStatus.cpu_virt_flag.toUpperCase() }}）
+                </el-tag>
+                <el-tag v-else type="danger" effect="plain">未检测到 CPU 虚拟化支持</el-tag>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="BIOS IOMMU">
+              <div class="host-setting-field">
+                <div class="host-setting-row">
+                  <el-tag v-if="hwPassthroughStatus?.bios_iommu_enabled" type="success" effect="plain">
+                    BIOS 已开启 IOMMU
+                  </el-tag>
+                  <el-tag v-else type="danger" effect="plain">BIOS IOMMU 未开启</el-tag>
+                </div>
+                <div v-if="hwPassthroughStatus?.bios_iommu_message" class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  {{ hwPassthroughStatus.bios_iommu_message }}
+                </div>
+              </div>
+            </el-form-item>
+
+            <!-- 以下配置仅在 BIOS IOMMU 已开启时显示 -->
+            <template v-if="showPassthroughConfig">
+
+            <el-form-item v-if="hasPassthroughDevices" label="启用硬件直通">
+              <div class="host-setting-field">
+                <div class="host-setting-row">
+                  <el-switch
+                    v-model="form.hardware_passthrough_enabled"
+                    active-text="已启用"
+                    inactive-text="已关闭"
+                  />
+                </div>
+                <div class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  保存后生效。开启后系统将在支持的宿主机上自动配置硬件直通环境。需要 IOMMU 已启用。
+                </div>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="IOMMU 状态">
+              <div class="host-setting-field">
+                <div class="host-setting-row">
+                  <el-tag v-if="hwPassthroughStatus?.iommu_enabled" type="success" effect="plain">
+                    IOMMU 已启用 ({{ hwPassthroughStatus.iommu_type.toUpperCase() }})
+                  </el-tag>
+                  <el-tag v-else type="danger" effect="plain">IOMMU 未启用</el-tag>
+                  <el-tag v-if="hwPassthroughStatus?.iommu_enabled && hwPassthroughStatus?.iommu_in_cmdline" type="info" effect="plain">
+                    内核参数启用
+                  </el-tag>
+                  <el-tag v-else-if="hwPassthroughStatus?.iommu_enabled" type="success" effect="plain">
+                    内核自动启用
+                  </el-tag>
+                  <el-button
+                    v-if="!hwPassthroughStatus?.iommu_enabled"
+                    size="small"
+                    type="primary"
+                    :loading="iommuEnabling"
+                    @click="handleEnableIommu"
+                  >
+                    一键开启
+                  </el-button>
+                </div>
+                <div v-if="!hwPassthroughStatus?.iommu_enabled" class="form-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  需要在 /etc/default/grub 的 GRUB_CMDLINE_LINUX 中添加 intel_iommu=on 或 amd_iommu=on，然后 update-grub 并重启宿主机。
+                </div>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="vfio-pci 模块">
+              <div class="host-setting-row">
+                <el-tag v-if="hwPassthroughStatus?.vfio_pci_loaded" type="success" effect="plain">vfio-pci 已加载</el-tag>
+                <el-tag v-else type="warning" effect="plain">vfio-pci 未加载</el-tag>
+                <el-button
+                  v-if="!hwPassthroughStatus?.vfio_pci_loaded"
+                  size="small"
+                  type="primary"
+                  :loading="vfioLoading"
+                  @click="handleLoadVfio"
+                >
+                  一键加载
+                </el-button>
+              </div>
+            </el-form-item>
+
+            <el-form-item v-if="hwPassthroughStatus?.passthrough_devices?.length" label="可直通设备">
+              <div style="width: 100%;">
+                <div
+                  v-for="dev in hwPassthroughStatus.passthrough_devices"
+                  :key="dev.pci_address"
+                  class="host-setting-field"
+                  style="margin-bottom: 8px;"
+                >
+                  <div class="host-setting-row">
+                    <el-tag effect="plain">{{ dev.pci_address }}</el-tag>
+                    <el-tag v-if="dev.product_name" type="info" effect="plain">{{ dev.product_name }}</el-tag>
+                    <el-tag v-if="dev.is_vfio_bound" type="success" effect="plain">已绑定 vfio-pci</el-tag>
+                    <el-tag v-else type="info" effect="plain">{{ dev.current_driver || '无驱动' }}</el-tag>
+                    <el-tag v-if="dev.is_active_framebuffer" type="danger" effect="plain">当前控制台（不可直通）</el-tag>
+                    <el-tag v-if="dev.iommu_group >= 0" effect="plain">IOMMU 组: {{ dev.iommu_group }}</el-tag>
+                  </div>
+                </div>
+              </div>
+            </el-form-item>
+
+            <el-form-item v-if="!hwPassthroughStatus?.passthrough_devices?.length && !hwPassthroughLoading" label="可直通设备">
+              <el-tag type="info" effect="plain">未检测到可用于直通的设备</el-tag>
+            </el-form-item>
+
+            </template>
+            <!-- 硬件直通配置区域结束 -->
+
+            <el-divider content-position="left">
               <el-icon style="margin-right: 4px;"><Connection /></el-icon>
               网络等待就绪检测
             </el-divider>
@@ -1195,7 +1324,7 @@
 <script setup>
 import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { Check, Connection, CopyDocument, Cpu, Delete, Download, FirstAidKit, FolderOpened, InfoFilled, Loading, Lock, Message, Monitor, Odometer, Plus, Refresh, Warning } from '@element-plus/icons-vue'
-import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, getUserStorageISOPath, rotateJWTSecret, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings, getLogStatus, deleteLogs, exportLogs, trimUserStorage, getDiagnosticCategories, exportDiagnostics } from '@/api/settings'
+import { getHostKSMStatus, getHostKVMUnrestrictedGuestStatus, getHostZRAMStatus, getSettings, getCPUAffinityPresets, getUserStorageISOPath, rotateJWTSecret, saveCPUAffinityPresets, testSMTP, updateHostKSMProfile, updateHostKVMUnrestrictedGuest, updateHostZRAMProfile, updateSettings, getLogStatus, deleteLogs, exportLogs, trimUserStorage, getDiagnosticCategories, exportDiagnostics, getHardwarePassthroughStatus, enableIommu, loadVfioPci } from '@/api/settings'
 import { getAllISOs } from '@/api/infra'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { setSiteTitle } from '@/utils/site'
@@ -1237,6 +1366,17 @@ const kvmUnrestrictedGuestLoading = ref(false)
 const kvmUnrestrictedGuestSaving = ref(false)
 const kvmUnrestrictedGuestEnabled = ref(true)
 const kvmUnrestrictedGuestStatus = ref(null)
+
+// 硬件直通状态
+const hwPassthroughLoading = ref(false)
+const hwPassthroughStatus = ref(null)
+const hwPassthroughReady = computed(() => hwPassthroughStatus.value?.ready || false)
+// BIOS IOMMU 已开启时才显示直通配置
+const showPassthroughConfig = computed(() => hwPassthroughStatus.value?.bios_iommu_enabled === true)
+// 检测到可直通设备时才显示启用开关
+const hasPassthroughDevices = computed(() => (hwPassthroughStatus.value?.passthrough_devices?.length || 0) > 0)
+const iommuEnabling = ref(false)
+const vfioLoading = ref(false)
 
 const affinityPresets = ref([])
 const affinityPresetsSaving = ref(false)
@@ -1305,6 +1445,8 @@ const form = reactive({
   network_wait_online_disabled: false,
   network_wait_online_summary: '',
   spice_enabled_by_default: false,
+  igpu_passthrough_enabled: false,
+  hardware_passthrough_enabled: false,
 })
 
 // ISO 列表
@@ -1474,6 +1616,72 @@ const loadKVMUnrestrictedGuestStatus = async () => {
   }
 }
 
+const loadHwPassthroughStatus = async () => {
+  hwPassthroughLoading.value = true
+  try {
+    const res = await getHardwarePassthroughStatus()
+    hwPassthroughStatus.value = res.data || null
+  } catch (err) {
+    console.error('读取硬件直通状态失败', err)
+  } finally {
+    hwPassthroughLoading.value = false
+  }
+}
+
+const handleEnableIommu = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '此操作将修改 /etc/default/grub 文件，添加 IOMMU 内核参数并执行 update-grub。操作后需重启宿主机才能生效。确认继续？',
+      '一键开启 IOMMU',
+      { confirmButtonText: '确认开启', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  iommuEnabling.value = true
+  try {
+    const res = await enableIommu()
+    if (res.code === 200) {
+      ElMessage.success(res.message || 'IOMMU 已配置')
+      await loadHwPassthroughStatus()
+    } else {
+      ElMessage.error(res.message || '配置失败')
+    }
+  } catch (err) {
+    console.error('开启 IOMMU 失败', err)
+  } finally {
+    iommuEnabling.value = false
+  }
+}
+
+const handleLoadVfio = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '此操作将加载 vfio-pci 内核模块并配置开机自动加载。确认继续？',
+      '一键加载 vfio-pci',
+      { confirmButtonText: '确认加载', cancelButtonText: '取消', type: 'info' }
+    )
+  } catch {
+    return
+  }
+
+  vfioLoading.value = true
+  try {
+    const res = await loadVfioPci()
+    if (res.code === 200) {
+      ElMessage.success(res.message || 'vfio-pci 已加载')
+      await loadHwPassthroughStatus()
+    } else {
+      ElMessage.error(res.message || '加载失败')
+    }
+  } catch (err) {
+    console.error('加载 vfio-pci 失败', err)
+  } finally {
+    vfioLoading.value = false
+  }
+}
+
 const handleKSMProfileChange = async (profileKey) => {
   const previousProfile = ksmStatus.value?.persistent_profile || ksmStatus.value?.current_profile || 'balanced'
   const profileName = getKSMProfileName(profileKey)
@@ -1545,12 +1753,13 @@ const handleZRAMProfileChange = async (profileKey) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    const [settingsResult, isoResult, kvmResult, ksmResult, zramResult] = await Promise.allSettled([
+    const [settingsResult, isoResult, kvmResult, ksmResult, zramResult, igpuResult] = await Promise.allSettled([
       getSettings(),
       getAllISOs(),
       getHostKVMUnrestrictedGuestStatus(),
       getHostKSMStatus(),
-      getHostZRAMStatus()
+      getHostZRAMStatus(),
+      getHardwarePassthroughStatus()
     ])
 
     loadAffinityPresets()
@@ -1574,6 +1783,9 @@ const fetchData = async () => {
     }
     if (zramResult.status === 'fulfilled') {
       applyZRAMStatus(zramResult.value.data)
+    }
+    if (igpuResult.status === 'fulfilled') {
+      hwPassthroughStatus.value = igpuResult.value.data || null
     }
   } catch (err) {
     console.error(err)
@@ -1769,6 +1981,8 @@ const buildPayload = () => ({
   log_max_backups: form.log_max_backups,
   network_wait_online_disabled: form.network_wait_online_disabled,
   spice_enabled_by_default: form.spice_enabled_by_default,
+  igpu_passthrough_enabled: form.igpu_passthrough_enabled,
+  hardware_passthrough_enabled: form.hardware_passthrough_enabled,
 })
 
 const handleTestSMTP = async () => {
@@ -2057,6 +2271,9 @@ const handleExportDiagnostics = async () => {
 
 // 切换到日志管理标签页时自动加载日志状态
 watch(activeTab, (tab) => {
+  if (tab === 'host' && !hwPassthroughStatus.value) {
+    loadHwPassthroughStatus()
+  }
   if (tab === 'log' && logStatus.files.length === 0) {
     fetchLogStatus()
   }
