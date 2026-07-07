@@ -18,7 +18,7 @@
               <span>我已阅读并同意</span>
               <a href="https://qvmcdocs.xiaozhuhouses.asia/agreement?return=%2Fdocs%2Finstall%2F" target="_blank" rel="noopener noreferrer" class="agreement-link" @click.stop>《用户协议》</a>
               <span>和</span>
-              <a href="https://qvmcdocs.xiaozhuhouses.asia/agreement?return=%2Fdocs%2Finstall%2F" target="_blank" rel="noopener noreferrer" class="agreement-link" @click.stop>《内测协议》</a>
+              <a href="https://qvmcdocs.xiaozhuhouses.asia/agreement?return=%2Fdocs%2Finstall%2F" target="_blank" rel="noopener noreferrer" class="agreement-link" @click.stop>《公测协议》</a>
             </el-checkbox>
           </el-form-item>
           <el-form-item class="submit-item">
