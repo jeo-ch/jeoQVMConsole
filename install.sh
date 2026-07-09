@@ -1672,9 +1672,9 @@ show_info() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
     if [ "$MODE" = "install" ]; then
-        echo -e "${CYAN}║       ${APP_NAME} 安装完成！                     ║${NC}"
+        echo -e "${CYAN}║       ${APP_NAME} 安装完成！                      ║${NC}"
     else
-        echo -e "${CYAN}║       ${APP_NAME} 更新完成！                     ║${NC}"
+        echo -e "${CYAN}║       ${APP_NAME} 更新完成！                      ║${NC}"
     fi
     echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
     echo -e "${CYAN}║${NC}  访问地址: ${GREEN}http://${host_ip}:${KVM_PORT}${NC}"
