@@ -1664,30 +1664,124 @@ uninstall_app() {
     success "${APP_NAME} 已卸载"
 }
 
+BOX_INNER_WIDTH=64
+
+# 测算可视化宽度，剔除所有ANSI转义序列
+get_visual_width() {
+    local txt="$1"
+    local stripped=$(sed -E $'s/\x1b\[[0-9;]*[mKHF]//g' <<<"$txt")
+    echo -n "$stripped" | wc -L
+}
+
+# 纯文本补齐空格，右填充到BOX_INNER_WIDTH
+pad_plain() {
+    local raw="$1"
+    local w=$(get_visual_width "$raw")
+    local pad=$(( BOX_INNER_WIDTH - w ))
+    (( pad < 0 )) && pad=0
+    local space_str
+    space_str=$(printf "%${pad}s" "")
+    printf '%s%s' "$raw" "$space_str"
+}
+
+# 新增：文本居中函数，左右自动分配空格
+center_text() {
+    local raw="$1"
+    local w=$(get_visual_width "$raw")
+    local total_pad=$(( BOX_INNER_WIDTH - w ))
+    (( total_pad < 0 )) && total_pad=0
+    local left_pad=$(( total_pad / 2 ))
+    local right_pad=$(( total_pad - left_pad ))
+    # 左侧空格 + 文字 + 右侧空格
+    printf "%${left_pad}s%s%${right_pad}s" "" "$raw" ""
+}
+
 show_info() {
     local host_ip
     host_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     host_ip=${host_ip:-localhost}
 
+    # 拼接固定边框字符串，边框统一使用青色
+    top_border="${CYAN}╔$(printf '═%.0s' $(seq 1 $BOX_INNER_WIDTH))╗${NC}"
+    mid_border="${CYAN}╠$(printf '═%.0s' $(seq 1 $BOX_INNER_WIDTH))╣${NC}"
+    bot_border="${CYAN}╚$(printf '═%.0s' $(seq 1 $BOX_INNER_WIDTH))╝${NC}"
+
     echo ""
-    echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+    echo -e "$top_border"
+
+    # 标题居中，标题文字保持青色
     if [ "$MODE" = "install" ]; then
-        echo -e "${CYAN}║       ${APP_NAME} 安装完成！                      ║${NC}"
+        title_raw="${APP_NAME} 安装完成！"
     else
-        echo -e "${CYAN}║       ${APP_NAME} 更新完成！                      ║${NC}"
+        title_raw="${APP_NAME} 更新完成！"
     fi
-    echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}  访问地址: ${GREEN}http://${host_ip}:${KVM_PORT}${NC}"
-    echo -e "${CYAN}║${NC}  安装目录: ${GREEN}${INSTALL_DIR}${NC}"
-    echo -e "${CYAN}║${NC}  配置文件: ${GREEN}${ENV_FILE}${NC}"
+    title_filled=$(center_text "$title_raw")
+    title_line="${CYAN}║${title_filled}║${NC}"
+    echo -e "$title_line"
+
+    echo -e "$mid_border"
+
+    # ========== 信息区块：标签普通白色，后面路径/地址部分单独绿色 ==========
+    # 访问地址行
+    label1="  访问地址:"
+    val1=" http://${host_ip}:${KVM_PORT}"
+    plain1="${label1}${val1}"
+    pad1=$(pad_plain "$plain1")
+    # 截取填充后的空白后缀
+    suffix1="${pad1#"$plain1"}"
+    line_info1="${CYAN}║${NC}${label1}${GREEN}${val1}${NC}${suffix1}${CYAN}║${NC}"
+
+    # 安装目录行
+    label2="  安装目录:"
+    val2=" ${INSTALL_DIR}"
+    plain2="${label2}${val2}"
+    pad2=$(pad_plain "$plain2")
+    suffix2="${pad2#"$plain2"}"
+    line_info2="${CYAN}║${NC}${label2}${GREEN}${val2}${NC}${suffix2}${CYAN}║${NC}"
+
+    # 配置文件行
+    label3="  配置文件:"
+    val3=" ${ENV_FILE}"
+    plain3="${label3}${val3}"
+    pad3=$(pad_plain "$plain3")
+    suffix3="${pad3#"$plain3"}"
+    line_info3="${CYAN}║${NC}${label3}${GREEN}${val3}${NC}${suffix3}${CYAN}║${NC}"
+
+    echo -e "$line_info1"
+    echo -e "$line_info2"
+    echo -e "$line_info3"
+
+    # 安装模式额外输出默认账号
     if [ "$MODE" = "install" ]; then
-        echo -e "${CYAN}║${NC}  默认账号: ${GREEN}admin${NC} / ${GREEN}admin123${NC}"
+        label4="  默认账号:"
+        val4=" admin / admin123"
+        plain4="${label4}${val4}"
+        pad4=$(pad_plain "$plain4")
+        suffix4="${pad4#"$plain4"}"
+        line_info4="${CYAN}║${NC}${label4}${GREEN}${val4}${NC}${suffix4}${CYAN}║${NC}"
+        echo -e "$line_info4"
     fi
-    echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
-    echo -e "${CYAN}║${NC}  查看状态: systemctl status $SERVICE_NAME"
-    echo -e "${CYAN}║${NC}  查看日志: journalctl -u $SERVICE_NAME -f"
-    echo -e "${CYAN}║${NC}  重启服务: systemctl restart $SERVICE_NAME"
-    echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+
+    echo -e "$mid_border"
+
+    # ========== 命令区块：整行普通白色原色，不施加绿色 ==========
+    c_raw1="  查看状态: systemctl status $SERVICE_NAME"
+    c_fill1=$(pad_plain "$c_raw1")
+    cmd_line1="${CYAN}║${NC}${c_fill1}${CYAN}║${NC}"
+
+    c_raw2="  查看日志: journalctl -u $SERVICE_NAME -f"
+    c_fill2=$(pad_plain "$c_raw2")
+    cmd_line2="${CYAN}║${NC}${c_fill2}${CYAN}║${NC}"
+
+    c_raw3="  重启服务: systemctl restart $SERVICE_NAME"
+    c_fill3=$(pad_plain "$c_raw3")
+    cmd_line3="${CYAN}║${NC}${c_fill3}${CYAN}║${NC}"
+
+    echo -e "$cmd_line1"
+    echo -e "$cmd_line2"
+    echo -e "$cmd_line3"
+
+    echo -e "$bot_border"
     echo ""
 }
 
