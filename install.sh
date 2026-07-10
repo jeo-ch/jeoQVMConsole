@@ -1289,7 +1289,7 @@ ensure_local_dnsmasq_input_rules() {
         proto="${rule%% *}"
         port="${rule##* }"
         iptables -C INPUT -i "$iface" -p "$proto" --dport "$port" -j ACCEPT 2>/dev/null || \
-            iptables -I INPUT 1 -i "$iface" -p "$proto" --dport "$port" -j ACCEPT
+            iptables -I INPUT 1 -i "$iface" -p "$proto" --dport "$port" -j ACCEPT 2>/dev/null || true
     done
 }
 
@@ -1351,14 +1351,20 @@ setup_ovs_foundation() {
     fi
 
     systemctl enable --now openvswitch-switch 2>/dev/null || true
-    ovs-vsctl --may-exist add-br "$bridge"
-    ip link set "$bridge" up
+    if ! ovs-vsctl --may-exist add-br "$bridge" 2>/dev/null; then
+        warn "创建 OVS 网桥失败，跳过 OVS 网络配置"
+        return 0
+    fi
+    if ! ip link set "$bridge" up 2>/dev/null; then
+        warn "启动 OVS 网桥失败，跳过 OVS 网络配置"
+        return 0
+    fi
     if ! ip -4 addr show dev "$bridge" | grep -q "${gateway}/24"; then
         ip addr flush dev "$bridge" 2>/dev/null || true
-        ip addr add "${gateway}/24" dev "$bridge"
+        ip addr add "${gateway}/24" dev "$bridge" 2>/dev/null || true
     fi
-    ensure_local_dnsmasq_input_rules "$bridge"
-    ensure_existing_vpc_dnsmasq_input_rules
+    ensure_local_dnsmasq_input_rules "$bridge" || true
+    ensure_existing_vpc_dnsmasq_input_rules || true
 
     cat >"${OVS_CONFIG_DIR}/dnsmasq.conf" <<EOF
 interface=${bridge}
@@ -1379,17 +1385,27 @@ EOF
 set -e
 BRIDGE="${bridge}"
 GATEWAY="${gateway}/24"
-ovs-vsctl --may-exist add-br "\$BRIDGE"
-ip link set "\$BRIDGE" up
+ovs-vsctl --may-exist add-br "\$BRIDGE" 2>/dev/null || true
+ip link set "\$BRIDGE" up 2>/dev/null || true
 if ! ip -4 addr show dev "\$BRIDGE" | grep -q "\$GATEWAY"; then
   ip addr flush dev "\$BRIDGE" 2>/dev/null || true
-  ip addr add "\$GATEWAY" dev "\$BRIDGE"
+  ip addr add "\$GATEWAY" dev "\$BRIDGE" 2>/dev/null || true
 fi
+# 释放端口，确保 libvirt dnsmasq 完全停止
+for i in 1 2 3 4 5; do
+  if ss -tlnp | grep -q "${gateway}:53"; then
+    sleep 1
+  else
+    break
+  fi
+done
+pkill -f "dnsmasq.*${subnet}" 2>/dev/null || true
+sleep 0.5
 for rule in "udp 67" "udp 53" "tcp 53"; do
   proto="\${rule%% *}"
   port="\${rule##* }"
   iptables -C INPUT -i "\$BRIDGE" -p "\$proto" --dport "\$port" -j ACCEPT 2>/dev/null || \\
-    iptables -I INPUT 1 -i "\$BRIDGE" -p "\$proto" --dport "\$port" -j ACCEPT
+    iptables -I INPUT 1 -i "\$BRIDGE" -p "\$proto" --dport "\$port" -j ACCEPT 2>/dev/null || true
 done
 EOF
     chmod +x "${OVS_CONFIG_DIR}/prepare-bridge.sh"
@@ -1404,9 +1420,12 @@ Wants=network-online.target openvswitch-switch.service
 Type=forking
 PIDFile=/run/kvm-console-ovs-dnsmasq.pid
 ExecStartPre=/bin/bash ${OVS_CONFIG_DIR}/prepare-bridge.sh
+ExecStartPre=/bin/bash -c 'pkill -f "dnsmasq.*${subnet}" 2>/dev/null || true'
+ExecStartPre=/bin/sleep 1
 ExecStart=/usr/sbin/dnsmasq --conf-file=${OVS_CONFIG_DIR}/dnsmasq.conf
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
@@ -1418,11 +1437,11 @@ EOF
 
     if [ -n "$uplink" ]; then
         iptables -t nat -C POSTROUTING -s "${subnet}.0/24" -o "$uplink" -j MASQUERADE 2>/dev/null || \
-            iptables -t nat -A POSTROUTING -s "${subnet}.0/24" -o "$uplink" -j MASQUERADE
+            iptables -t nat -A POSTROUTING -s "${subnet}.0/24" -o "$uplink" -j MASQUERADE 2>/dev/null || true
         iptables -C FORWARD -i "$bridge" -o "$uplink" -j ACCEPT 2>/dev/null || \
-            iptables -A FORWARD -i "$bridge" -o "$uplink" -j ACCEPT
+            iptables -A FORWARD -i "$bridge" -o "$uplink" -j ACCEPT 2>/dev/null || true
         iptables -C FORWARD -i "$uplink" -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || \
-            iptables -A FORWARD -i "$uplink" -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+            iptables -A FORWARD -i "$uplink" -o "$bridge" -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
     fi
 
     if virsh net-info default >/dev/null 2>&1; then
