@@ -1,5 +1,5 @@
 <template>
-  <el-dialog title="快照管理" v-model="visible" width="700px" append-to-body>
+  <el-dialog title="快照管理" v-model="visible" width="900px" append-to-body>
     <SnapshotList v-if="visible" :vm-name="currentVmName" :vm-status="currentVmStatus" />
   </el-dialog>
 </template>

@@ -57,10 +57,11 @@ func GetOVSStatus() (*OVSStatus, error) {
 		}
 	}
 
-	status.OpenVSwitchService = readSystemdServiceStatus("openvswitch-switch")
+	ovsServiceName := DetectOpenvswitchServiceName()
+	status.OpenVSwitchService = readSystemdServiceStatus(ovsServiceName)
 	status.DNSMasqService = readSystemdServiceStatus(OVSDNSMasqUnit)
 	if !status.OpenVSwitchService.Active {
-		status.addIssue("openvswitch-switch 服务未运行")
+		status.addIssue(ovsServiceName + " 服务未运行")
 	}
 	if !status.DNSMasqService.Active {
 		status.addIssue("OVS dnsmasq 服务未运行")
@@ -299,7 +300,7 @@ func buildOVSRepairSuggestions(status *OVSStatus) []string {
 		suggestions = append(suggestions, "重新确保 OVS 网桥和网关地址")
 	}
 	if !status.OpenVSwitchService.Active {
-		suggestions = append(suggestions, "启动 openvswitch-switch 服务")
+		suggestions = append(suggestions, fmt.Sprintf("启动 %s 服务", status.OpenVSwitchService.Name))
 	}
 	if !status.DNSMasqService.Active {
 		suggestions = append(suggestions, "重写并启动 OVS dnsmasq 服务")

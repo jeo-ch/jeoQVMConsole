@@ -128,7 +128,7 @@
                 </div>
                 <div class="info-list">
                   <div class="info-item">
-                    <span class="info-label">openvswitch-switch</span>
+                    <span class="info-label">{{ status?.openvswitch_service?.name || 'openvswitch-switch' }}</span>
                     <el-tag :type="status?.openvswitch_service?.active ? 'success' : 'danger'" size="small" effect="light">
                       {{ status?.openvswitch_service?.state || '-' }}
                     </el-tag>

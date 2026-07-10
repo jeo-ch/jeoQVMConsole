@@ -37,7 +37,7 @@
         <el-card shadow="never" class="section-card">
           <template #header>服务与转发</template>
           <el-descriptions :column="1" border size="small">
-            <el-descriptions-item label="openvswitch-switch">
+            <el-descriptions-item :label="status?.openvswitch_service?.name || 'openvswitch-switch'">
               <el-tag :type="status?.openvswitch_service?.active ? 'success' : 'danger'" size="small">
                 {{ status?.openvswitch_service?.state || '-' }}
               </el-tag>

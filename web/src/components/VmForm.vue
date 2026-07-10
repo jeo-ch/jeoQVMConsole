@@ -457,8 +457,12 @@
                 </div>
               </el-form-item>
               <el-form-item label="SPICE 协议">
-                <el-switch v-model="form.spice_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" />
-                <div v-if="editVmStatus === 'running' || editVmStatus === 'paused'" class="form-tip">
+                <el-switch v-model="form.spice_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused' || !qemuSpiceSupported" />
+                <div v-if="!qemuSpiceSupported" class="form-tip">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span style="color: #E6A23C;">当前 QEMU 未编译 SPICE 支持，无法启用</span>
+                </div>
+                <div v-else-if="editVmStatus === 'running' || editVmStatus === 'paused'" class="form-tip">
                   <el-icon><WarningFilled /></el-icon>
                   运行中不可修改，请关机后更改
                 </div>
@@ -1860,8 +1864,12 @@
                 </div>
               </el-form-item>
               <el-form-item label="SPICE 协议">
-                <el-switch v-model="form.spice_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" />
-                <div v-if="editVmStatus === 'running' || editVmStatus === 'paused'" class="form-tip">
+                <el-switch v-model="form.spice_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused' || !qemuSpiceSupported" />
+                <div v-if="!qemuSpiceSupported" class="form-tip">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span style="color: #E6A23C;">当前 QEMU 未编译 SPICE 支持，无法启用</span>
+                </div>
+                <div v-else-if="editVmStatus === 'running' || editVmStatus === 'paused'" class="form-tip">
                   <el-icon><WarningFilled /></el-icon>
                   运行中不可修改，请关机后更改
                 </div>
@@ -2588,6 +2596,7 @@ const cpuAffinityPresets = ref([])
 const cpuAffinityPresetsLoaded = ref(false)
 const hostCPUCores = ref(0)
 const hostArch = ref('x86_64')
+const qemuSpiceSupported = ref(true) // 默认支持，检测后更新
 const registrationContext = reactive({
   dedicated_vpc_switch_id: 0,
   dedicated_vpc_label: ''
@@ -4566,6 +4575,10 @@ const open = async (row, mode, options = {}) => {
       if (['aarch64', 'x86_64', 'riscv64'].includes(archStr)) {
         hostArch.value = archStr
       }
+    }
+    // 检测 QEMU SPICE 支持
+    if (archRes.data?.qemu_spice !== undefined) {
+      qemuSpiceSupported.value = archRes.data.qemu_spice
     }
   } catch {}
   // 获取系统设置中的 ISO 存储位置

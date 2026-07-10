@@ -23,6 +23,23 @@ const (
 	OVSLeasesFile    = "/var/lib/kvm-console/ovs/dnsmasq.leases"
 )
 
+// DetectOpenvswitchServiceName detects the correct systemd service name for Open vSwitch.
+// Different distributions use different names: "openvswitch-switch" (Ubuntu/Debian) or "openvswitch" (openEuler/CentOS).
+func DetectOpenvswitchServiceName() string {
+	// Try openvswitch-switch first (Ubuntu/Debian)
+	result := utils.ExecCommand("systemctl", "list-unit-files", "openvswitch-switch.service")
+	if result.Error == nil && strings.Contains(result.Stdout, "openvswitch-switch.service") {
+		return "openvswitch-switch"
+	}
+	// Try openvswitch (openEuler/CentOS)
+	result = utils.ExecCommand("systemctl", "list-unit-files", "openvswitch.service")
+	if result.Error == nil && strings.Contains(result.Stdout, "openvswitch.service") {
+		return "openvswitch"
+	}
+	// Default to openvswitch-switch
+	return "openvswitch-switch"
+}
+
 // NetworkBackend returns the configured network backend, defaulting to "ovs".
 func NetworkBackend() string {
 	if config.GlobalConfig == nil || strings.TrimSpace(config.GlobalConfig.NetworkBackend) == "" {
@@ -116,7 +133,7 @@ func EnsureOVSNetworkReady() error {
 		return nil
 	}
 	if result := utils.ExecCommand("bash", "-c", "command -v ovs-vsctl"); result.Error != nil {
-		return fmt.Errorf("OVS 未安装，请先安装 openvswitch-switch")
+		return fmt.Errorf("OVS 未安装，请先安装 openvswitch-switch 或 openvswitch")
 	}
 	if result := utils.ExecCommand("bash", "-c", "command -v dnsmasq"); result.Error != nil {
 		return fmt.Errorf("dnsmasq 不可用，请确认已安装 dnsmasq-base")
@@ -139,9 +156,10 @@ func EnsureOVSNetworkReady() error {
 		}
 	}
 
-	EnsureSystemdUnitEnabled("openvswitch-switch")
-	if !IsSystemdUnitActive("openvswitch-switch") {
-		utils.ExecCommand("systemctl", "start", "openvswitch-switch")
+	ovsServiceName := DetectOpenvswitchServiceName()
+	EnsureSystemdUnitEnabled(ovsServiceName)
+	if !IsSystemdUnitActive(ovsServiceName) {
+		utils.ExecCommand("systemctl", "start", ovsServiceName)
 	}
 	DisableLibvirtDefaultNetworkIfNeeded()
 	if result := utils.ExecCommand("ovs-vsctl", "--may-exist", "add-br", bridge); result.Error != nil {
@@ -508,16 +526,17 @@ done
 }
 
 func writeOVSDNSMasqUnit() (bool, error) {
-	content := `[Unit]
+	ovsServiceName := DetectOpenvswitchServiceName()
+	content := fmt.Sprintf(`[Unit]
 Description=KVM Console OVS DHCP/DNS service
-After=network-online.target openvswitch-switch.service
-Wants=network-online.target openvswitch-switch.service
+After=network-online.target %s.service
+Wants=network-online.target %s.service
 
 [Service]
 Type=forking
 PIDFile=/run/kvm-console-ovs-dnsmasq.pid
 ExecStartPre=/bin/bash /etc/kvm-console/ovs/prepare-bridge.sh
-ExecStartPre=/bin/bash -c 'pkill -f "dnsmasq.` + OvsSubnetPrefix() + `" 2>/dev/null || true'
+ExecStartPre=/bin/bash -c 'pkill -f "dnsmasq.%s" 2>/dev/null || true'
 ExecStartPre=/bin/sleep 1
 ExecStart=/usr/sbin/dnsmasq --conf-file=/etc/kvm-console/ovs/dnsmasq.conf
 ExecReload=/bin/kill -HUP $MAINPID
@@ -526,7 +545,7 @@ RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
-`
+`, ovsServiceName, ovsServiceName, OvsSubnetPrefix())
 	path := "/etc/systemd/system/" + OVSDNSMasqUnit
 	changed, err := WriteFileIfChanged(path, []byte(content), 0644)
 	if err != nil {

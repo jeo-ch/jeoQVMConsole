@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"path/filepath"
 
+	ovspkg "kvm_console/service/ovs"
 	"kvm_console/utils"
 )
 
 func writeBridgeRestoreUnit() error {
-	content := `[Unit]
+	ovsServiceName := ovspkg.DetectOpenvswitchServiceName()
+	content := fmt.Sprintf(`[Unit]
 Description=KVM Console managed OVS bridge restore
-After=network-online.target openvswitch-switch.service
-Wants=network-online.target openvswitch-switch.service
+After=network-online.target %s.service
+Wants=network-online.target %s.service
 
 [Service]
 Type=oneshot
@@ -20,7 +22,7 @@ RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
-`
+`, ovsServiceName, ovsServiceName)
 	changed, err := HookWriteFileIfChanged("/etc/systemd/system/kvm-console-bridges.service", []byte(content), 0644)
 	if err != nil {
 		return fmt.Errorf("写入桥接网桥 systemd 服务失败: %w", err)

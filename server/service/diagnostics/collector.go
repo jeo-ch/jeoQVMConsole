@@ -179,7 +179,7 @@ func collectSystem(rootDir string, zw *zip.Writer) collectResult {
 	runShell(prefix+"memory.txt", zw, "free -h; echo '---'; cat /proc/meminfo | head -30")
 	runShell(prefix+"disk-usage.txt", zw, "df -h")
 	runShell(prefix+"uptime.txt", zw, "uptime")
-	runShell(prefix+"systemd-services.txt", zw, "systemctl is-active libvirtd openvswitch-switch 2>/dev/null; echo '---'; systemctl list-units --type=service --state=running | head -60")
+	runShell(prefix+"systemd-services.txt", zw, "systemctl is-active libvirtd 2>/dev/null; systemctl is-active openvswitch-switch 2>/dev/null; systemctl is-active openvswitch 2>/dev/null; echo '---'; systemctl list-units --type=service --state=running | head -60")
 	runShell(prefix+"kernel-modules.txt", zw, "lsmod | grep -E 'kvm|tun|vhost' 2>/dev/null; echo '---'; cat /sys/module/kvm*/parameters/* 2>/dev/null")
 	runShell(prefix+"dmesg.txt", zw, "dmesg | tail -200")
 

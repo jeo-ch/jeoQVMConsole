@@ -45,6 +45,7 @@ func GetPublicSystemInfo(c *gin.Context) {
 			"uptime":        getSystemUptime(),
 			"libvirt":       getLibvirtVersion(),
 			"qemu":          getQEMUVersion(),
+			"qemu_spice":    CheckQEMUSPICESupport(),
 		},
 	})
 }
@@ -122,6 +123,30 @@ func getDistroName() string {
 		return version
 	}
 	return "-"
+}
+
+// CheckQEMUSPICESupport 检测 QEMU 是否编译了 SPICE 支持
+// 通过检查 qemu-system-x86_64 -spice help 是否成功来判断
+func CheckQEMUSPICESupport() bool {
+	// 方法1: 检查 -spice help
+	out, err := exec.Command("qemu-system-x86_64", "-spice", "help").Output()
+	if err == nil && strings.Contains(strings.ToLower(string(out)), "spice") {
+		return true
+	}
+	// 方法2: 检查帮助信息中是否包含 spice 选项
+	out, err = exec.Command("qemu-system-x86_64", "--help").Output()
+	if err == nil {
+		helpText := strings.ToLower(string(out))
+		if strings.Contains(helpText, "-spice") {
+			return true
+		}
+	}
+	// 方法3: 检查 qemu-kvm
+	out, err = exec.Command("qemu-kvm", "-spice", "help").Output()
+	if err == nil && strings.Contains(strings.ToLower(string(out)), "spice") {
+		return true
+	}
+	return false
 }
 
 // Version 通过 ldflags 在构建时注入，格式: -X kvm_console/handler.Version=v1.0.0

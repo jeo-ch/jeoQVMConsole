@@ -70,7 +70,7 @@ func CreateNetworkBridge(req NetworkBridgeRequest) (*model.NetworkBridge, error)
 
 func EnsureOVSBridgeDirect(bridge, uplink string, migrateHostIP bool, cfg HostIPConfig) error {
 	if result := utils.ExecCommand("bash", "-c", "command -v ovs-vsctl"); result.Error != nil {
-		return fmt.Errorf("OVS 未安装，请先安装 openvswitch-switch")
+		return fmt.Errorf("OVS 未安装，请先安装 openvswitch-switch 或 openvswitch")
 	}
 	bridge = strings.TrimSpace(bridge)
 	uplink = strings.TrimSpace(uplink)
