@@ -196,9 +196,17 @@ func EnsureOVSNetworkReady() error {
 	}
 	EnsureSystemdUnitEnabled(OVSDNSMasqUnit)
 	if IsSystemdUnitFailed(OVSDNSMasqUnit) || !IsSystemdUnitActive(OVSDNSMasqUnit) {
-		// 启动前释放端口：只杀 libvirt default 网络的 dnsmasq（监听 192.168.122.1:53）
-		utils.ExecShellQuiet(fmt.Sprintf("ss -tlnp | grep '%s:53' | grep -oP 'pid=\\K[0-9]+' | xargs -r kill 2>/dev/null || true", OvsGatewayIP()))
-		time.Sleep(time.Second)
+		// 启动前释放端口：仅杀占用 gatewayIP:53 的特定 PID，避免误杀 OVS dnsmasq
+		gatewayIP := OvsGatewayIP()
+		for i := 0; i < 3; i++ {
+			pidResult := utils.ExecShellQuiet(fmt.Sprintf("ss -tlnp | grep '%s:53' | grep -oP 'pid=\\K[0-9]+' | head -1", gatewayIP))
+			pid := strings.TrimSpace(pidResult.Stdout)
+			if pid == "" {
+				break
+			}
+			utils.ExecShellQuiet(fmt.Sprintf("kill %s 2>/dev/null || true", pid))
+			time.Sleep(500 * time.Millisecond)
+		}
 		if result := utils.ExecCommand("systemctl", "start", OVSDNSMasqUnit); result.Error != nil {
 			return fmt.Errorf("启动 OVS DHCP 服务失败: %s", result.Stderr)
 		}
@@ -261,19 +269,17 @@ func DisableLibvirtDefaultNetworkIfNeeded() {
 		utils.ExecCommand("virsh", "net-autostart", "default", "--disable")
 	}
 	// 等待端口释放，确保 libvirt dnsmasq 完全停止
- waitForPortRelease:
+	// 使用精确 PID 匹配而非 pkill -f，避免误杀 OVS dnsmasq
+	gatewayIP := OvsGatewayIP()
 	for i := 0; i < 5; i++ {
-		result := utils.ExecShellQuiet(fmt.Sprintf("ss -tlnp | grep -q '%s:53'", OvsGatewayIP()))
-		if result.Error != nil {
-			// 端口未被占用，可以继续
-			break waitForPortRelease
+		result := utils.ExecShellQuiet(fmt.Sprintf("ss -tlnp | grep '%s:53' | grep -oP 'pid=\\K[0-9]+' | head -1", gatewayIP))
+		pid := strings.TrimSpace(result.Stdout)
+		if pid == "" {
+			break
 		}
-		// 端口仍被占用，等待后重试
-		time.Sleep(time.Second)
+		utils.ExecShellQuiet(fmt.Sprintf("kill %s 2>/dev/null || true", pid))
+		time.Sleep(500 * time.Millisecond)
 	}
-	// 杀掉残留的 libvirt dnsmasq 进程
-	utils.ExecShellQuiet("pkill -f 'dnsmasq.*192.168.122' || true")
-	time.Sleep(500 * time.Millisecond)
 }
 
 // EnsureSystemdUnitEnabled enables a systemd unit if not already enabled.
@@ -535,17 +541,16 @@ Wants=network-online.target %s.service
 [Service]
 Type=forking
 PIDFile=/run/kvm-console-ovs-dnsmasq.pid
-ExecStartPre=/bin/bash /etc/kvm-console/ovs/prepare-bridge.sh
-ExecStartPre=/bin/bash -c 'pkill -f "dnsmasq.%s" 2>/dev/null || true'
-ExecStartPre=/bin/sleep 1
 ExecStart=/usr/sbin/dnsmasq --conf-file=/etc/kvm-console/ovs/dnsmasq.conf
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
-RestartSec=3
+RestartSec=5
+# 网桥和端口释放由主服务 EnsureOVSNetworkReady() 统一处理，此处不再重复
+# 避免 ExecStartPre 与主服务并发操作 ovs-vsctl / pkill 导致竞争
 
 [Install]
 WantedBy=multi-user.target
-`, ovsServiceName, ovsServiceName, OvsSubnetPrefix())
+`, ovsServiceName, ovsServiceName)
 	path := "/etc/systemd/system/" + OVSDNSMasqUnit
 	changed, err := WriteFileIfChanged(path, []byte(content), 0644)
 	if err != nil {

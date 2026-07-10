@@ -1471,13 +1471,11 @@ Wants=network-online.target openvswitch-switch.service
 [Service]
 Type=forking
 PIDFile=/run/kvm-console-ovs-dnsmasq.pid
-ExecStartPre=/bin/bash ${OVS_CONFIG_DIR}/prepare-bridge.sh
-ExecStartPre=/bin/bash -c 'pkill -f "dnsmasq.*${subnet}" 2>/dev/null || true'
-ExecStartPre=/bin/sleep 1
 ExecStart=/usr/sbin/dnsmasq --conf-file=${OVS_CONFIG_DIR}/dnsmasq.conf
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
-RestartSec=3
+RestartSec=5
+# 网桥和端口释放由主服务 EnsureOVSNetworkReady() 统一处理
 
 [Install]
 WantedBy=multi-user.target
