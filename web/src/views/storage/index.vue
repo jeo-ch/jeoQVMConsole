@@ -133,7 +133,7 @@
                 :auto-upload="false"
                 :show-file-list="false"
                 :on-change="(file) => handleUpload(file, 'disk')"
-                accept=".qcow2,.raw,.vmdk,.vhd,.vhdx,.img"
+                accept=".qcow2,.raw,.vmdk,.vhd,.vhdx,.img,.vfd"
                 :disabled="storageInfo.readonly"
               >
                 <el-button type="primary" icon="Upload" :disabled="storageInfo.readonly">上传磁盘文件</el-button>

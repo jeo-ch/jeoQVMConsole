@@ -311,7 +311,7 @@ func UploadDiskFile(c *gin.Context) {
 
 	// 磁盘文件后缀检查
 	nameLower := strings.ToLower(header.Filename)
-	validExts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img"}
+	validExts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd"}
 	validExt := false
 	for _, ext := range validExts {
 		if strings.HasSuffix(nameLower, ext) {

@@ -82,7 +82,7 @@ func validateStorageFileSuffix(category, name string) error {
 			return errors.New("ISO 类别仅支持 .iso 文件")
 		}
 	case "disk":
-		exts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img"}
+		exts := []string{".qcow2", ".raw", ".vmdk", ".vhd", ".vhdx", ".img", ".vfd"}
 		ok := false
 		for _, e := range exts {
 			if strings.HasSuffix(lower, e) {
@@ -91,7 +91,7 @@ func validateStorageFileSuffix(category, name string) error {
 			}
 		}
 		if !ok {
-			return errors.New("虚拟磁盘仅支持: .qcow2, .raw, .vmdk, .vhd, .vhdx, .img")
+			return errors.New("虚拟磁盘仅支持: .qcow2, .raw, .vmdk, .vhd, .vhdx, .img, .vfd")
 		}
 	}
 	return nil
