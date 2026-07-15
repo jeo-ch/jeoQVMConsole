@@ -75,9 +75,10 @@
               <el-option label="VGA（兼容模式）" value="vga" />
               <el-option label="VMVGA（VMware 嵌套）" value="vmvga" />
               <el-option label="Cirrus（排障）" value="cirrus" />
+              <el-option label="None（禁用虚拟显示）" value="none" />
             </el-select>
             <div style="margin-top: 4px; color: #909399; font-size: 12px;">
-              Windows 安装或 VMware 嵌套环境可优先尝试 VGA / VMVGA
+              Windows 安装或 VMware 嵌套环境可优先尝试 VGA / VMVGA；None 将隐藏 VNC/SPICE 控制台
             </div>
           </el-form-item>
           <el-form-item label="开机自启">

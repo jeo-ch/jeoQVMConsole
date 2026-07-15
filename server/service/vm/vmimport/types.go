@@ -35,7 +35,7 @@ type ImportVMParams struct {
 	BootType         string                            `json:"boot_type,omitempty"`          // 启动类型: bios/uefi
 	MachineType      string                            `json:"machine_type,omitempty"`       // 机器类型: q35/pc
 	NicModel         string                            `json:"nic_model,omitempty"`          // 网卡模型
-	VideoModel       string                            `json:"video_model,omitempty"`        // 视频模型: virtio/vga/vmvga/cirrus
+	VideoModel       string                            `json:"video_model,omitempty"`        // 视频模型: virtio/vga/vmvga/cirrus/ramfb/none
 	SpiceEnabled     *bool                             `json:"spice_enabled,omitempty"`      // 是否启用 SPICE（nil=回退全局默认）
 	CPUTopologyMode  string                            `json:"cpu_topology_mode,omitempty"`  // CPU 拓扑模式
 	CPULimitPercent  int                               `json:"cpu_limit_percent,omitempty"`  // CPU 限制百分比，0 表示无限制

@@ -209,7 +209,7 @@ func normalizeTemplateDefaultConfig(config *TemplateDefaultConfig) *TemplateDefa
 	}
 	if strings.TrimSpace(normalized.VideoModel) != "" {
 		switch strings.ToLower(strings.TrimSpace(normalized.VideoModel)) {
-		case vm_xml.VMVideoModelVirtio, vm_xml.VMVideoModelVGA, vm_xml.VMVideoModelVMVGA, vm_xml.VMVideoModelCirrus:
+		case vm_xml.VMVideoModelVirtio, vm_xml.VMVideoModelVGA, vm_xml.VMVideoModelVMVGA, vm_xml.VMVideoModelCirrus, vm_xml.VMVideoModelRamfb, vm_xml.VMVideoModelNone:
 			normalized.VideoModel = strings.ToLower(strings.TrimSpace(normalized.VideoModel))
 		default:
 			normalized.VideoModel = ""

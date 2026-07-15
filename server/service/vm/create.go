@@ -45,7 +45,7 @@ type CreateVMParams struct {
 	BootType        string                         `json:"boot_type,omitempty"`
 	Watchdog        string                         `json:"watchdog,omitempty"`
 	BootOrder       []string                       `json:"boot_order,omitempty"`
-	VideoModel      string                         `json:"video_model,omitempty"`   // 视频模型: virtio/vga/vmvga/cirrus/ramfb
+	VideoModel      string                         `json:"video_model,omitempty"`   // 视频模型: virtio/vga/vmvga/cirrus/ramfb/none
 	SpiceEnabled    *bool                          `json:"spice_enabled,omitempty"` // 是否启用 SPICE 显示协议（nil=回退全局默认）
 	CPUTopologyMode string                         `json:"cpu_topology_mode,omitempty"`
 	CPULimitPercent int                            `json:"cpu_limit_percent,omitempty"`

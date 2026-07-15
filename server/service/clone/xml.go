@@ -198,6 +198,10 @@ func defineAndStartNonWindowsClone(params *CloneParams, cloneDisk string, ramMB 
 			vmXML = D.EnsureQXLVideo(vmXML)
 		}
 	}
+	vmXML, err = applyCloneHostDevicesToDomainXML(vmXML, params.HostDevices, params.IsAdmin)
+	if err != nil {
+		return err
+	}
 
 	// 嵌套虚拟化开关（默认启用，host-passthrough 下需 policy='disable' 覆盖）
 	if params.NestedVirt == nil || *params.NestedVirt {

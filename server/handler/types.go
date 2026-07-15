@@ -36,7 +36,7 @@ type VmEditRequest struct {
 	BootOrder       []string                          `json:"boot_order"`         // 启动顺序
 	DeviceOrder     []string                          `json:"device_order"`       // 设备级启动顺序（dev 标识符，如 sdb/sda/vda）
 	NicModel        string                            `json:"nic_model"`          // 网卡类型: virtio/e1000e/rtl8139
-	VideoModel      string                            `json:"video_model"`        // 视频模型: virtio/vga/vmvga/cirrus/ramfb
+	VideoModel      string                            `json:"video_model"`        // 视频模型: virtio/vga/vmvga/cirrus/ramfb/none
 	CPUTopologyMode string                            `json:"cpu_topology_mode"`  // CPU 拓扑模式
 	CPULimitPercent *int                              `json:"cpu_limit_percent"`  // CPU 限制百分比（仅管理员，0 表示无限制）
 	CPUAffinity     *string                           `json:"cpu_affinity"`       // CPU 亲和性（仅管理员，null 表示不修改，空字符串表示清除）

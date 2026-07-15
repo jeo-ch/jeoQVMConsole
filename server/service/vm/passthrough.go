@@ -3,10 +3,12 @@ package vm
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"kvm_console/logger"
+	"kvm_console/service/vm_xml"
 	"kvm_console/utils"
 )
 
@@ -37,6 +39,8 @@ const hostdevXMLTemplate = `<hostdev mode='subsystem' type='pci' managed='yes'>
     <address domain='0x%s' bus='0x%s' slot='0x%s' function='0x%s'/>
   </source>
 </hostdev>`
+
+var readPCIDeviceClass = os.ReadFile
 
 // parsePCIAddress 解析 PCI 地址 "0000:04:00.0" 为 domain/bus/slot/function
 func parsePCIAddress(addr string) (domain, bus, slot, function string, err error) {
@@ -221,6 +225,13 @@ func AttachPCIDeviceToVM(vmName, pciAddress string) error {
 	if result.Error != nil {
 		return fmt.Errorf("添加 PCI 直通设备失败: %s", result.Stderr)
 	}
+	if err := SyncVMPrimaryPassthroughDisplay(vmName); err != nil {
+		rollback := utils.ExecCommand("virsh", "detach-device", vmName, tmpFile, "--config")
+		if rollback.Error != nil {
+			return fmt.Errorf("同步直通主显卡失败: %v；回滚新设备失败: %s", err, rollback.Stderr)
+		}
+		return fmt.Errorf("同步直通主显卡失败，已回滚新设备: %w", err)
+	}
 
 	RefreshVMCacheByNameAsync(vmName)
 	return nil
@@ -244,6 +255,9 @@ func DetachPCIDeviceFromVM(vmName, pciAddress string) error {
 	result := utils.ExecCommand("virsh", "detach-device", vmName, tmpFile, "--config")
 	if result.Error != nil {
 		return fmt.Errorf("移除 PCI 直通设备失败: %s", result.Stderr)
+	}
+	if err := SyncVMPrimaryPassthroughDisplay(vmName); err != nil {
+		return fmt.Errorf("设备已移除，但同步直通主显卡配置失败: %w", err)
 	}
 
 	RefreshVMCacheByNameAsync(vmName)
@@ -801,7 +815,73 @@ func ApplyHostDevsToDomainXML(xmlContent string, hostDevs []HostDeviceParam) (st
 	xmlContent = strings.Replace(xmlContent, "</devices>",
 		"\n"+injectContent+"\n  </devices>", 1)
 
-	return xmlContent, nil
+	return ApplyPrimaryPassthroughDisplayToDomainXML(xmlContent)
+}
+
+// ApplyPrimaryPassthroughDisplayToDomainXML 根据虚拟显示模型同步直通主显卡。
+// none 是独立的无头模式；当且仅当 XML 中存在一张 PCI VGA 直通设备时，
+// 自动为其设置 x-vga=true。多张 VGA 时拒绝猜测主卡。
+func ApplyPrimaryPassthroughDisplayToDomainXML(xmlContent string) (string, error) {
+	if vm_xml.ParseVMVideoModelFromDomainXML(xmlContent) != vm_xml.VMVideoModelNone {
+		return vm_xml.ApplyPrimaryGPUXVGAToDomainXML(xmlContent, "")
+	}
+
+	var vgaDevices []string
+	for _, pciAddress := range vm_xml.ParsePCIHostDeviceAddresses(xmlContent) {
+		classPath := filepath.Join("/sys/bus/pci/devices", pciAddress, "class")
+		classData, err := readPCIDeviceClass(classPath)
+		if err != nil {
+			continue
+		}
+		classCode := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(string(classData))), "0x")
+		if strings.HasPrefix(classCode, "0300") {
+			vgaDevices = append(vgaDevices, pciAddress)
+		}
+	}
+
+	if len(vgaDevices) > 1 {
+		return "", fmt.Errorf("虚拟显示设备为 none 时检测到多张直通 VGA，无法自动确定主显卡")
+	}
+	if len(vgaDevices) == 0 {
+		return vm_xml.ApplyPrimaryGPUXVGAToDomainXML(xmlContent, "")
+	}
+	return vm_xml.ApplyPrimaryGPUXVGAToDomainXML(xmlContent, vgaDevices[0])
+}
+
+// SyncVMPrimaryPassthroughDisplay 将无头显示与直通 GPU 的 x-vga 配置同步到持久化 XML。
+func SyncVMPrimaryPassthroughDisplay(vmName string) error {
+	xmlResult := utils.ExecCommand("virsh", "dumpxml", vmName, "--inactive")
+	if xmlResult.Error != nil {
+		return fmt.Errorf("获取虚拟机 XML 失败: %s", xmlResult.Stderr)
+	}
+
+	updatedXML, err := ApplyPrimaryPassthroughDisplayToDomainXML(xmlResult.Stdout)
+	if err != nil {
+		return err
+	}
+	if updatedXML == xmlResult.Stdout {
+		return nil
+	}
+
+	tmpFile, err := os.CreateTemp("", "qvm-primary-display-*.xml")
+	if err != nil {
+		return fmt.Errorf("创建临时 XML 失败: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmpFile.WriteString(updatedXML); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("写入临时 XML 失败: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("关闭临时 XML 失败: %w", err)
+	}
+
+	defineResult := utils.ExecCommand("virsh", "define", "--validate", tmpPath)
+	if defineResult.Error != nil {
+		return fmt.Errorf("应用直通主显卡配置失败: %s", defineResult.Stderr)
+	}
+	return nil
 }
 
 // EnsureVfioModuleLoaded 确保 vfio-pci 模块已加载

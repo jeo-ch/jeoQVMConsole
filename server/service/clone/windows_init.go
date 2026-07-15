@@ -444,6 +444,10 @@ func cloneWindows(ctx context.Context, params *CloneParams, cloneDisk string, ra
 	if !isNoInit && isoPath != "" {
 		vmXML = addConfigDriveCDROMToXML(vmXML, isoPath, diskBus)
 	}
+	vmXML, err = applyCloneHostDevicesToDomainXML(vmXML, params.HostDevices, params.IsAdmin)
+	if err != nil {
+		return err
+	}
 
 	// 嵌套虚拟化开关（默认启用，host-passthrough 下需 policy='disable' 覆盖）
 	if params.NestedVirt == nil || *params.NestedVirt {

@@ -12,6 +12,7 @@ const (
 	VMVideoModelVMVGA  = "vmvga"
 	VMVideoModelCirrus = "cirrus"
 	VMVideoModelRamfb  = "ramfb"
+	VMVideoModelNone   = "none"
 )
 
 var (
@@ -28,7 +29,7 @@ var (
 func ResolveVMVideoModel(videoModel, osType, arch string) string {
 	normalized := strings.ToLower(strings.TrimSpace(videoModel))
 	switch normalized {
-	case VMVideoModelVirtio, VMVideoModelVGA, VMVideoModelVMVGA, VMVideoModelCirrus, VMVideoModelRamfb:
+	case VMVideoModelVirtio, VMVideoModelVGA, VMVideoModelVMVGA, VMVideoModelCirrus, VMVideoModelRamfb, VMVideoModelNone:
 		return normalized
 	}
 
@@ -63,6 +64,8 @@ func renderVMVideoBlock(videoModel string) string {
 		modelXML = "<model type='cirrus'/>"
 	case VMVideoModelRamfb:
 		modelXML = "<model type='ramfb'/>"
+	case VMVideoModelNone:
+		modelXML = "<model type='none'/>"
 	}
 
 	return fmt.Sprintf("    <video>\n      %s\n    </video>", modelXML)

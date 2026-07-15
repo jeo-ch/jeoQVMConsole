@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"kvm_console/service/arch"
+	"kvm_console/service/vm_xml"
 )
 
 // graphics.go — SPICE graphics 块与 QXL video 的 XML 注入/改写。
@@ -101,6 +102,11 @@ func extractSPICEPasswd(block string) string {
 //
 // ARM64 (aarch64) 架构不支持 QXL 显卡模型，直接返回原 XML 不做更改。
 func EnsureQXLVideo(xmlStr string) string {
+	// none 表示用户明确禁用了虚拟显示设备。SPICE 仍可保留协议配置，
+	// 但不能为其自动补回 QXL，否则会破坏直通 GPU 的主显示适配器关系。
+	if vm_xml.ParseVMVideoModelFromDomainXML(xmlStr) == vm_xml.VMVideoModelNone {
+		return xmlStr
+	}
 	if arch.IsHostArch(arch.ArchAarch64) {
 		return xmlStr
 	}

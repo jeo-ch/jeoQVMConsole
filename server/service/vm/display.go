@@ -31,6 +31,10 @@ func SetVMVideoModel(name, videoModel string) error {
 	if osType == "windows" {
 		xmlStr = vm_xml.ApplyWindowsGuestOptimizationsToDomainXML(xmlStr)
 	}
+	xmlStr, err := ApplyPrimaryPassthroughDisplayToDomainXML(xmlStr)
+	if err != nil {
+		return fmt.Errorf("同步直通主显卡失败: %w", err)
+	}
 
 	xmlPath := fmt.Sprintf("/tmp/_video-%s.xml", name)
 	if err := os.WriteFile(xmlPath, []byte(xmlStr), 0644); err != nil {

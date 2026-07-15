@@ -609,6 +609,7 @@ sudo reboot</pre>
 <li><strong>VFIO</strong>：将设备绑定到 vfio-pci 驱动</li>
 <li><strong>前置条件</strong>：IOMMU 支持、独立 IOMMU 组、VT-d/AMD-Vi</li>
 <li><strong>NVIDIA 特殊处理</strong>：自动配置隐藏虚拟化参数（解决 Error 43）</li>
+<li><strong>直通主显卡</strong>：将虚拟显示设备设为 None 后，单张直通 VGA 会自动启用 x-vga；VNC/SPICE 控制台入口会隐藏</li>
 </ul>
 
 <h3 id="s2.2.9">快照管理</h3>

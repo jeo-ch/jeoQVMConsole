@@ -36,7 +36,7 @@ type VmInfo struct {
 	Autostart                bool                 `json:"autostart"`          // 开机自启
 	MacAddress               string               `json:"mac_address"`        // MAC 地址
 	VNCPort                  string               `json:"vnc_port"`           // VNC 端口
-	VideoModel               string               `json:"video_model"`        // 视频模型: virtio/vga/vmvga/cirrus/ramfb
+	VideoModel               string               `json:"video_model"`        // 视频模型: virtio/vga/vmvga/cirrus/ramfb/none
 	CPUTopologyMode          string               `json:"cpu_topology_mode"`  // CPU 拓扑模式
 	CPULimitPercent          int                  `json:"cpu_limit_percent"`  // CPU 限制百分比，0 表示无限制
 	CPUAffinity              string               `json:"cpu_affinity"`       // CPU 亲和性，如 "0,2,4"，空字符串表示未设置

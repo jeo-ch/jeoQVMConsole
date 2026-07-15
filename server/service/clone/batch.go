@@ -14,6 +14,12 @@ import (
 
 // BatchCloneVM 批量克隆（支持取消）
 func BatchCloneVM(ctx context.Context, params *BatchCloneParams, progressFn func(int, string)) ([]CloneResult, error) {
+	if len(params.HostDevices) > 0 && !params.IsAdmin {
+		return nil, fmt.Errorf("仅管理员可配置硬件直通设备")
+	}
+	if params.Count > 1 && len(params.HostDevices) > 0 {
+		return nil, fmt.Errorf("批量克隆不能复用同一组物理直通设备，请改为单台克隆")
+	}
 	maxConcurrency := config.GlobalConfig.BatchCloneMaxConcurrency
 	if maxConcurrency <= 0 {
 		maxConcurrency = 10
@@ -105,6 +111,7 @@ func BatchCloneVM(ctx context.Context, params *BatchCloneParams, progressFn func
 				FirstBootRebootMode: params.FirstBootRebootMode,
 				SwitchID:            params.SwitchID,
 				SecurityGroupID:     params.SecurityGroupID,
+				HostDevices:         params.HostDevices,
 				IsAdmin:             params.IsAdmin,
 				DisableSystemInit:   params.DisableSystemInit,
 				StaticIP:            params.StaticIP,

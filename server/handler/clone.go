@@ -63,6 +63,7 @@ type CloneVmRequest struct {
 	ExtraNics            []service.AddVMInterfaceRequest   `json:"extra_nics"`
 	StoragePoolID        string                            `json:"storage_pool_id"`
 	ExtraDisks           []service.ExtraDiskParam          `json:"extra_disks"`
+	HostDevices          []service.HostDeviceParam         `json:"host_devices"` // 硬件直通设备（仅管理员）
 	NicModel             string                            `json:"nic_model"`
 	PreserveFnOSDeviceID bool                              `json:"preserve_fnos_device_id"`
 	FnOSDeviceID         string                            `json:"fnos_device_id"`
@@ -114,6 +115,7 @@ type BatchCloneRequest struct {
 	SwitchID            uint                            `json:"switch_id"`         // VPC 交换机 ID
 	SecurityGroupID     uint                            `json:"security_group_id"` // 安全组 ID
 	ExtraNics           []service.AddVMInterfaceRequest `json:"extra_nics"`
+	HostDevices         []service.HostDeviceParam       `json:"host_devices"`              // count > 1 时不允许
 	DisableSystemInit   bool                            `json:"disable_system_init"`       // 禁用系统初始化
 	StaticIP            string                          `json:"static_ip"`                 // OpenWrt 静态 IP（CIDR 格式）
 	Gateway             string                          `json:"gateway"`                   // OpenWrt 网关
@@ -270,6 +272,7 @@ func CloneVm(c *gin.Context) {
 		ExtraNics:            req.ExtraNics,
 		StoragePoolID:        req.StoragePoolID,
 		ExtraDisks:           req.ExtraDisks,
+		HostDevices:          req.HostDevices,
 		NicModel:             req.NicModel,
 		PreserveFnOSDeviceID: req.PreserveFnOSDeviceID,
 		FnOSDeviceID:         req.FnOSDeviceID,
@@ -284,6 +287,10 @@ func CloneVm(c *gin.Context) {
 	}
 
 	params.IsAdmin = isAdmin
+	if len(req.HostDevices) > 0 && !isAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "仅管理员可配置硬件直通设备"})
+		return
+	}
 	params.DisableSystemInit = req.DisableSystemInit
 	if !isAdmin {
 		params.MemoryDynamic = sanitizeUserMemoryDynamicRequest(req.MemoryDynamic, req.RAM)
@@ -435,6 +442,7 @@ func BatchCloneVm(c *gin.Context) {
 		SwitchID:            req.SwitchID,
 		SecurityGroupID:     req.SecurityGroupID,
 		ExtraNics:           req.ExtraNics,
+		HostDevices:         req.HostDevices,
 		IsAdmin:             isAdmin,
 		DisableSystemInit:   req.DisableSystemInit,
 		StaticIP:            req.StaticIP,

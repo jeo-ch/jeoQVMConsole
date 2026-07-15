@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
+	vmpkg "kvm_console/service/vm"
 	"kvm_console/service/vm/memory"
 	"kvm_console/service/vm_xml"
 )
@@ -12,6 +13,8 @@ import (
 const LinuxCloneIPWaitSeconds = 180
 
 var fnOSDeviceIDRegexp = regexp.MustCompile(`^[0-9a-fA-F]{32}([0-9a-fA-F]{8})?$`)
+
+type HostDeviceParam = vmpkg.HostDeviceParam
 
 // CloneParams 克隆参数
 type CloneParams struct {
@@ -41,7 +44,7 @@ type CloneParams struct {
 	TemplateRootPass      string                         `json:"template_root_pass,omitempty"`     // 模板 root 密码（用于 SSH 初始化）
 	TemplateUser          string                         `json:"template_user,omitempty"`          // 模板中已有的用户名
 	DiskBus               string                         `json:"disk_bus,omitempty"`               // 系统盘总线类型: virtio/scsi/sata/ide
-	VideoModel            string                         `json:"video_model,omitempty"`            // 视频模型: virtio/vga/vmvga/cirrus
+	VideoModel            string                         `json:"video_model,omitempty"`            // 视频模型: virtio/vga/vmvga/cirrus/ramfb/none
 	SpiceEnabled          *bool                          `json:"spice_enabled,omitempty"`          // 是否启用 SPICE（nil=回退全局默认）
 	CPUTopologyMode       string                         `json:"cpu_topology_mode,omitempty"`      // CPU 拓扑模式: auto/single_socket/host_default
 	CPULimitPercent       int                            `json:"cpu_limit_percent,omitempty"`      // CPU 限制百分比，0 表示无限制
@@ -53,7 +56,8 @@ type CloneParams struct {
 	ExtraNics             []AddVMInterfaceRequest        `json:"extra_nics,omitempty"`
 	StoragePoolID         string                         `json:"storage_pool_id,omitempty"`
 	ExtraDisks            []ExtraDiskParam               `json:"extra_disks,omitempty"`
-	NicModel              string                         `json:"nic_model,omitempty"` // 网卡模型: virtio/e1000e/rtl8139
+	HostDevices           []HostDeviceParam              `json:"host_devices,omitempty"` // 硬件直通设备
+	NicModel              string                         `json:"nic_model,omitempty"`    // 网卡模型: virtio/e1000e/rtl8139
 	PreserveFnOSDeviceID  bool                           `json:"preserve_fnos_device_id,omitempty"`
 	FnOSDeviceID          string                         `json:"fnos_device_id,omitempty"`
 	SystemDiskIOPS        *DiskIOPSTune                  `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制
@@ -110,6 +114,7 @@ type BatchCloneParams struct {
 	SwitchID            uint                       `json:"switch_id,omitempty"`              // VPC 交换机 ID
 	SecurityGroupID     uint                       `json:"security_group_id,omitempty"`      // 安全组 ID
 	ExtraNics           []AddVMInterfaceRequest    `json:"extra_nics,omitempty"`
+	HostDevices         []HostDeviceParam          `json:"host_devices,omitempty"`        // 仅 count=1 时允许
 	IsAdmin             bool                       `json:"is_admin,omitempty"`            // 是否管理员
 	DisableSystemInit   bool                       `json:"disable_system_init,omitempty"` // 禁用系统初始化
 	StaticIP            string                     `json:"static_ip,omitempty"`           // OpenWrt 静态 IP

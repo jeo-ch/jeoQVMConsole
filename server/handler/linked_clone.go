@@ -14,37 +14,38 @@ import (
 
 // LinkedCloneVmRequest 原生链式克隆请求
 type LinkedCloneVmRequest struct {
-	Name                string                          `json:"name" binding:"required"`
-	Remark              string                          `json:"remark"`
-	Template            string                          `json:"template" binding:"required"`
-	TemplateType        string                          `json:"template_type"`
-	CloneMode           string                          `json:"clone_mode"`
-	VCPU                int                             `json:"vcpu" binding:"required"`
-	RAM                 int                             `json:"ram" binding:"required"`
-	DiskSize            *int                            `json:"disk_size"`
-	Autostart           bool                            `json:"autostart"`
-	Freeze              bool                            `json:"freeze"`
-	APIC                *bool                           `json:"apic"`
-	PAE                 *bool                           `json:"pae"`
-	RTCOffset           string                          `json:"rtc_offset"`
-	RTCStartDate        string                          `json:"rtc_startdate"`
-	GuestAgent          *vm_xml.VMGuestAgentConfig `json:"guest_agent"`
-	SMBIOS1             *vm_xml.VMSMBIOS1Config    `json:"smbios1"`
-	BootType            string                          `json:"boot_type"`
-	DiskBus             string                          `json:"disk_bus"`
-	VideoModel          string                          `json:"video_model"`
-	CPUTopologyMode     string                          `json:"cpu_topology_mode"`
-	CPULimitPercent     int                             `json:"cpu_limit_percent"`
-	CPUAffinity         string                          `json:"cpu_affinity"`         // CPU 亲和性，如 "0,2,4"
-	FirstBootRebootMode string                          `json:"first_boot_reboot_mode"`
+	Name                string                            `json:"name" binding:"required"`
+	Remark              string                            `json:"remark"`
+	Template            string                            `json:"template" binding:"required"`
+	TemplateType        string                            `json:"template_type"`
+	CloneMode           string                            `json:"clone_mode"`
+	VCPU                int                               `json:"vcpu" binding:"required"`
+	RAM                 int                               `json:"ram" binding:"required"`
+	DiskSize            *int                              `json:"disk_size"`
+	Autostart           bool                              `json:"autostart"`
+	Freeze              bool                              `json:"freeze"`
+	APIC                *bool                             `json:"apic"`
+	PAE                 *bool                             `json:"pae"`
+	RTCOffset           string                            `json:"rtc_offset"`
+	RTCStartDate        string                            `json:"rtc_startdate"`
+	GuestAgent          *vm_xml.VMGuestAgentConfig        `json:"guest_agent"`
+	SMBIOS1             *vm_xml.VMSMBIOS1Config           `json:"smbios1"`
+	BootType            string                            `json:"boot_type"`
+	DiskBus             string                            `json:"disk_bus"`
+	VideoModel          string                            `json:"video_model"`
+	CPUTopologyMode     string                            `json:"cpu_topology_mode"`
+	CPULimitPercent     int                               `json:"cpu_limit_percent"`
+	CPUAffinity         string                            `json:"cpu_affinity"` // CPU 亲和性，如 "0,2,4"
+	FirstBootRebootMode string                            `json:"first_boot_reboot_mode"`
 	MemoryDynamic       *vm_memory.VMMemoryDynamicRequest `json:"memory_dynamic"`
-	SwitchID            uint                            `json:"switch_id"`
-	SecurityGroupID     uint                            `json:"security_group_id"`
-	ExtraNics           []service.AddVMInterfaceRequest `json:"extra_nics"`
-	StoragePoolID       string                          `json:"storage_pool_id"`
-	ExtraDisks          []service.ExtraDiskParam        `json:"extra_disks"`
-	NicModel            string                          `json:"nic_model"`
-	SystemDiskIOPS      *service.DiskIOPSTune           `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
+	SwitchID            uint                              `json:"switch_id"`
+	SecurityGroupID     uint                              `json:"security_group_id"`
+	ExtraNics           []service.AddVMInterfaceRequest   `json:"extra_nics"`
+	StoragePoolID       string                            `json:"storage_pool_id"`
+	ExtraDisks          []service.ExtraDiskParam          `json:"extra_disks"`
+	HostDevices         []service.HostDeviceParam         `json:"host_devices"`
+	NicModel            string                            `json:"nic_model"`
+	SystemDiskIOPS      *service.DiskIOPSTune             `json:"system_disk_iops"` // 系统盘 IOPS 限制（仅管理员）
 }
 
 // LinkedCloneVm 原生链式克隆虚拟机（异步任务）
@@ -133,6 +134,7 @@ func LinkedCloneVm(c *gin.Context) {
 		ExtraNics:           req.ExtraNics,
 		StoragePoolID:       req.StoragePoolID,
 		ExtraDisks:          req.ExtraDisks,
+		HostDevices:         req.HostDevices,
 		NicModel:            req.NicModel,
 		SystemDiskIOPS:      req.SystemDiskIOPS,
 		IsAdmin:             true,

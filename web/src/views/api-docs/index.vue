@@ -392,7 +392,7 @@ const fieldDescriptions = {
   uuid: 'SMBIOS UUID 字段或资源唯一标识。',
   vcpu: '虚拟 CPU 核心数。',
   version: 'SMBIOS version 版本字段。',
-  video_model: '虚拟显卡型号。',
+  video_model: '虚拟显卡型号；none 表示禁用虚拟显示设备，并隐藏 VNC/SPICE 控制台。',
   cpu_limit_percent: 'CPU 限制百分比，0 表示无限制；管理员字段。',
   vlan_id: 'VLAN ID。',
   virt_type: '虚拟化方案，例如 kvm 或 qemu。',

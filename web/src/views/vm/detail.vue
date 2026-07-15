@@ -216,7 +216,7 @@
               </template>
               <VmSchedulePanel :vm-name="vmName" />
             </el-tab-pane>
-            <el-tab-pane name="vnc" lazy>
+            <el-tab-pane v-if="virtualDisplayEnabled" name="vnc" lazy>
               <template #label>
                 <span class="tab-label-text">
                   <el-icon><Monitor /></el-icon> VNC 控制台
@@ -225,7 +225,7 @@
               <VncConsole :vm-name="vmName" :vm-status="vmInfo.status" :guest-password="vmInfo.credential?.password || ''" />
             </el-tab-pane>
 
-            <el-tab-pane name="spice" lazy>
+            <el-tab-pane v-if="virtualDisplayEnabled" name="spice" lazy>
               <template #label>
                 <span class="tab-label-text">
                   <el-icon><VideoCamera /></el-icon> SPICE 控制台
@@ -527,7 +527,7 @@
                     <span v-else>-</span>
                   </span>
                 </div>
-                <div class="info-row">
+                <div v-if="virtualDisplayEnabled" class="info-row">
                   <span class="info-label">VNC 端口</span>
                   <span class="info-value mono">{{ vmInfo.vnc_port || '-' }}</span>
                 </div>
@@ -987,6 +987,8 @@ const vmInfo = reactive({
   pcie_info: null
 })
 
+const virtualDisplayEnabled = computed(() => vmInfo.video_model !== 'none')
+
 const startActionText = computed(() => vmInfo.status === 'paused' ? '继续启动' : '开机')
 const startConfirmText = computed(() => vmInfo.status === 'paused' ? '确定要继续启动吗？' : '确定要开机吗？')
 const developerTabButtonText = computed(() => showDeveloperTab.value ? '隐藏开发者页面' : '显示开发者页面')
@@ -1317,6 +1319,9 @@ const initSSE = () => {
           prevStatsTime = now
         }
         Object.assign(vmInfo, data)
+        if (vmInfo.video_model === 'none' && (activeTab.value === 'vnc' || activeTab.value === 'spice')) {
+          activeTab.value = 'snapshot'
+        }
         vmStore.addVisitedVm({ id: vmName.value, name: vmInfo.name || vmName.value })
         if (!pageReady.value) {
           pageReady.value = true

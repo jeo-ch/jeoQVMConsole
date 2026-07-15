@@ -26,7 +26,7 @@
               <el-tag :type="editVmStatus === 'running' ? 'success' : 'info'" style="margin-right: 12px;">
                 {{ editVmStatus === 'running' ? '运行中' : '已关机' }}
               </el-tag>
-              <template v-if="editVmVNC">
+              <template v-if="editVmVNC && form.video_model !== 'none'">
                 <el-tag type="warning">VNC {{ editVmVNC }}</el-tag>
               </template>
             </el-form-item>
@@ -439,7 +439,7 @@
                 </div>
               </el-form-item>
               <el-form-item label="显示设备">
-                <el-select v-model="form.video_model" style="width: 280px;" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'">
+                <el-select v-model="form.video_model" style="width: 280px;" :disabled="editVmStatus === 'running' || editVmStatus === 'paused'" @change="onVideoModelChange">
                   <el-option v-for="item in videoModelOptions" :key="item.value" :label="item.label" :value="item.value">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                       <span>{{ item.label }}</span>
@@ -447,7 +447,11 @@
                     </div>
                   </el-option>
                 </el-select>
-                <div v-if="editVmStatus === 'running' || editVmStatus === 'paused'" class="form-tip">
+                <div v-if="form.video_model === 'none'" class="form-tip">
+                  <el-icon><WarningFilled /></el-icon>
+                  已禁用虚拟显示设备，VNC/SPICE 控制台将隐藏；若仅直通一张 VGA，系统会自动将其设为主显卡
+                </div>
+                <div v-else-if="editVmStatus === 'running' || editVmStatus === 'paused'" class="form-tip">
                   <el-icon><WarningFilled /></el-icon>
                   修改显示设备需要先关机
                 </div>
@@ -456,7 +460,7 @@
                   Windows 或 VMware 嵌套环境可优先尝试 VGA / VMVGA；Linux 默认推荐 VirtIO
                 </div>
               </el-form-item>
-              <el-form-item label="SPICE 协议">
+              <el-form-item v-if="form.video_model !== 'none'" label="SPICE 协议">
                 <el-switch v-model="form.spice_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused' || !qemuSpiceSupported" />
                 <div v-if="!qemuSpiceSupported" class="form-tip">
                   <el-icon><WarningFilled /></el-icon>
@@ -1850,7 +1854,7 @@
                 </div>
               </el-form-item>
               <el-form-item label="显示设备">
-                <el-select v-model="form.video_model" style="width: 280px;">
+                <el-select v-model="form.video_model" style="width: 280px;" @change="onVideoModelChange">
                   <el-option v-for="item in videoModelOptions" :key="item.value" :label="item.label" :value="item.value">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                       <span>{{ item.label }}</span>
@@ -1858,12 +1862,16 @@
                     </div>
                   </el-option>
                 </el-select>
-                <div class="form-tip">
+                <div v-if="form.video_model === 'none'" class="form-tip">
+                  <el-icon><WarningFilled /></el-icon>
+                  已禁用虚拟显示设备，VNC/SPICE 控制台将隐藏；若仅直通一张 VGA，系统会自动将其设为主显卡
+                </div>
+                <div v-else class="form-tip">
                   <el-icon><InfoFilled /></el-icon>
                   Windows 安装或 VMware 嵌套环境可优先尝试 VGA / VMVGA；若系统已安装 VirtIO 驱动可再切回 VirtIO
                 </div>
               </el-form-item>
-              <el-form-item label="SPICE 协议">
+              <el-form-item v-if="form.video_model !== 'none'" label="SPICE 协议">
                 <el-switch v-model="form.spice_enabled" active-text="启用" inactive-text="关闭" :disabled="editVmStatus === 'running' || editVmStatus === 'paused' || !qemuSpiceSupported" />
                 <div v-if="!qemuSpiceSupported" class="form-tip">
                   <el-icon><WarningFilled /></el-icon>
@@ -2792,7 +2800,7 @@ const resolveTemplateDefaultNicModel = (tpl) => {
 }
 const resolveTemplateDefaultVideoModel = (tpl) => {
   const videoModel = String(resolveTemplateDefaultConfig(tpl)?.video_model || '').trim().toLowerCase()
-  return ['virtio', 'vga', 'vmvga', 'cirrus', 'ramfb'].includes(videoModel) ? videoModel : ''
+  return ['virtio', 'vga', 'vmvga', 'cirrus', 'ramfb', 'none'].includes(videoModel) ? videoModel : ''
 }
 const resolveTemplateDefaultCPUTopologyMode = (tpl) => {
   const mode = String(resolveTemplateDefaultConfig(tpl)?.cpu_topology_mode || '').trim().toLowerCase()
@@ -3766,8 +3774,17 @@ const videoModelOptions = [
   { value: 'ramfb', label: 'ramfb（ARM 兼容）', tag: 'ARM', tagType: 'danger' },
   { value: 'vga', label: 'VGA（兼容模式）', tag: '兼容', tagType: 'warning' },
   { value: 'vmvga', label: 'VMVGA（VMware 嵌套）', tag: '嵌套', tagType: 'primary' },
-  { value: 'cirrus', label: 'Cirrus（保守排障）', tag: '排障', tagType: 'info' }
+  { value: 'cirrus', label: 'Cirrus（保守排障）', tag: '排障', tagType: 'info' },
+  { value: 'none', label: 'None（禁用虚拟显示）', tag: '无头', tagType: 'warning' }
 ]
+
+const onVideoModelChange = (value) => {
+  if (value === 'none') {
+    form.spice_enabled = false
+  }
+}
+
+const getEffectiveSpiceEnabled = () => form.video_model === 'none' ? false : form.spice_enabled
 
 // 可添加的启动设备（已添加的排除）
 const availableBootDevices = computed(() => {
@@ -5262,14 +5279,16 @@ const submitForm = async () => {
           await updateVm(form.name, editPayload)
           // SPICE 联动：开关状态变化时启用/禁用（仅关机时可改，故不会重启运行中 VM；仍走二次验证）
           let spiceNote = ''
-          if (form.spice_enabled !== editOrigSpiceEnabled.value) {
+          const targetSpiceEnabled = getEffectiveSpiceEnabled()
+          if (targetSpiceEnabled !== editOrigSpiceEnabled.value) {
             try {
-              if (form.spice_enabled) {
+              if (targetSpiceEnabled) {
                 await enableSpice(form.name, '')
               } else {
                 await disableSpice(form.name)
               }
-              editOrigSpiceEnabled.value = form.spice_enabled
+              form.spice_enabled = targetSpiceEnabled
+              editOrigSpiceEnabled.value = targetSpiceEnabled
             } catch (e) {
               spiceNote = '；SPICE 状态更新失败，请在详情页手动调整'
             }
@@ -5303,7 +5322,7 @@ const submitForm = async () => {
               rtc_offset: form.rtc_offset, rtc_startdate: normalizeRTCStartDate(form.rtc_startdate),
               guest_agent: buildGuestAgentPayload(), smbios1: buildSMBIOS1Payload(),
               boot_type: form.boot_type, machine_type: form.machine_type,
-              nic_model: form.nic_model, video_model: form.video_model, spice_enabled: form.spice_enabled,
+              nic_model: form.nic_model, video_model: form.video_model, spice_enabled: getEffectiveSpiceEnabled(),
               cpu_topology_mode: form.cpu_topology_mode,
               first_boot_reboot_mode: form.first_boot_reboot_mode,
               extra_nics: nicsPayload.extraNics,
@@ -5364,7 +5383,7 @@ const submitForm = async () => {
             machine_type: form.machine_type,
             nic_model: form.nic_model,
             video_model: form.video_model,
-            spice_enabled: form.spice_enabled,
+            spice_enabled: getEffectiveSpiceEnabled(),
             cpu_topology_mode: form.cpu_topology_mode,
             first_boot_reboot_mode: form.first_boot_reboot_mode,
             extra_nics: nicsPayload.extraNics,
@@ -5393,6 +5412,10 @@ const submitForm = async () => {
               ElMessage.warning('批量创建暂不支持服务器登记模式')
               return
             }
+            if (form.host_devices.length > 0) {
+              ElMessage.warning('批量克隆不能复用同一组物理直通设备，请改为单台克隆')
+              return
+            }
             const batchPayload = {
               prefix: form.name,
               start_num: 1,
@@ -5419,7 +5442,7 @@ const submitForm = async () => {
               uefi: (form.boot_type === 'uefi' || form.boot_type === 'uefi-secure') ? true : undefined,
               template_user: form.system_init_enabled ? (isWindowsTemplate.value ? windowsTemplateUsername : form.import_user.trim()) : '',
               video_model: form.video_model,
-              spice_enabled: form.spice_enabled,
+              spice_enabled: getEffectiveSpiceEnabled(),
               disk_bus: form.disk_bus,
               nic_model: form.nic_model,
               storage_pool_id: form.storage_pool_id,
@@ -5481,7 +5504,7 @@ const submitForm = async () => {
             } : undefined,
             nic_model: form.nic_model,
             video_model: form.video_model,
-            spice_enabled: form.spice_enabled,
+            spice_enabled: getEffectiveSpiceEnabled(),
             cpu_topology_mode: form.cpu_topology_mode,
             first_boot_reboot_mode: form.first_boot_reboot_mode,
             extra_nics: nicsPayload.extraNics,
@@ -5600,7 +5623,7 @@ const submitForm = async () => {
             watchdog: form.watchdog,
             boot_order: form.boot_order,
             video_model: form.video_model,
-            spice_enabled: form.spice_enabled,
+            spice_enabled: getEffectiveSpiceEnabled(),
             cpu_topology_mode: form.cpu_topology_mode,
             virt_type: form.virt_type,
             arch: form.virt_type === 'qemu' ? form.arch : undefined,

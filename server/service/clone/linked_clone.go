@@ -53,6 +53,7 @@ type LinkedCloneParams struct {
 	ExtraNics           []AddVMInterfaceRequest `json:"extra_nics,omitempty"`
 	StoragePoolID       string                  `json:"storage_pool_id,omitempty"`
 	ExtraDisks          []ExtraDiskParam        `json:"extra_disks,omitempty"`
+	HostDevices         []HostDeviceParam       `json:"host_devices,omitempty"`
 	NicModel            string                  `json:"nic_model,omitempty"`
 	SystemDiskIOPS      *DiskIOPSTune           `json:"system_disk_iops,omitempty"` // 系统盘 IOPS 限制
 	IsAdmin             bool                    `json:"is_admin,omitempty"`
@@ -342,6 +343,11 @@ func LinkedCloneVM(ctx context.Context, params *LinkedCloneParams, progressFn fu
 		return nil, err
 	}
 	if err := vm_xml.EnsureVMUEFINVRAMFile(params.Name, vmXML, normalizedBootType); err != nil {
+		cleanupLinkedCloneArtifacts("", cloneDisk)
+		return nil, err
+	}
+	vmXML, err = applyCloneHostDevicesToDomainXML(vmXML, params.HostDevices, params.IsAdmin)
+	if err != nil {
 		cleanupLinkedCloneArtifacts("", cloneDisk)
 		return nil, err
 	}

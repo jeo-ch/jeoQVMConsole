@@ -10,7 +10,7 @@
         </el-tag>
       </div>
       <div class="toolbar-right">
-        <el-button v-if="!connected" type="success" @click="connect" :loading="connecting" size="small">
+        <el-button v-if="!connected" type="success" @click="connect" :loading="connecting" :disabled="virtualDisplayDisabled" size="small">
           <el-icon><Monitor /></el-icon>
           连接
         </el-button>
@@ -72,7 +72,8 @@
     <div ref="vncContainer" class="vnc-window-screen" :class="{ 'vnc-connected': connected, 'vnc-fullscreen': isFullscreen }">
       <div v-if="!connected" class="vnc-placeholder">
         <el-icon :size="80" color="#4a4a5a"><Monitor /></el-icon>
-        <p v-if="connecting">正在连接中...</p>
+        <p v-if="virtualDisplayDisabled">该虚拟机已禁用虚拟显示设备，VNC 控制台不可用</p>
+        <p v-else-if="connecting">正在连接中...</p>
         <p v-else>点击工具栏「连接」按钮开始远程控制</p>
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
       </div>
@@ -120,6 +121,7 @@ const vmName = route.params.id
 const connected = ref(false)
 const connecting = ref(false)
 const errorMsg = ref('')
+const virtualDisplayDisabled = ref(false)
 const isFullscreen = ref(false)
 const guestPassword = ref('')
 const pastingGuestPassword = ref(false)
@@ -159,6 +161,7 @@ const getWsUrl = () => {
 const fetchGuestPassword = async () => {
   try {
     const res = await getVmDetail(vmName)
+    virtualDisplayDisabled.value = res.data?.video_model === 'none'
     guestPassword.value = res.data?.credential?.password || ''
   } catch (err) {
     console.error('获取虚拟机登录凭据失败', err)
@@ -167,6 +170,10 @@ const fetchGuestPassword = async () => {
 
 // 连接 VNC
 const connect = async () => {
+  if (virtualDisplayDisabled.value) {
+    errorMsg.value = '该虚拟机已禁用虚拟显示设备'
+    return
+  }
   if (!vncContainer.value) return
 
   connecting.value = true
@@ -341,13 +348,15 @@ const handleClose = () => {
   window.close()
 }
 
-onMounted(() => {
+onMounted(async () => {
   applyDocumentTitle(`VNC - ${vmName}`)
-  fetchGuestPassword()
+  await fetchGuestPassword()
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   window.addEventListener('resize', handleResize)
   // 自动连接
-  setTimeout(connect, 300)
+  if (!virtualDisplayDisabled.value) {
+    setTimeout(connect, 300)
+  }
 })
 
 onBeforeUnmount(() => {

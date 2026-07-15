@@ -281,6 +281,7 @@
             <el-option label="VGA（兼容模式）" value="vga" />
             <el-option label="VMVGA（VMware 嵌套）" value="vmvga" />
             <el-option label="Cirrus（保守排障）" value="cirrus" />
+            <el-option label="None（禁用虚拟显示）" value="none" />
           </el-select>
         </el-form-item>
         <el-form-item label="CPU 拓扑">
