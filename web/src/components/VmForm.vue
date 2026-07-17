@@ -4888,8 +4888,9 @@ const handleRemoveFloppy = async (device) => {
 // 磁盘扩容
 const handleResizeDisk = async (disk) => {
   try {
+    const currentCapacity = disk.capacity_gb || 0
     const { value } = await ElMessageBox.prompt(
-      `当前容量: ${disk.capacity_gb || '未知'} GB\n请输入新的容量（GB），只能扩大不能缩小:`,
+      `当前容量: ${currentCapacity} GB\n请输入新的容量（GB），只能扩大不能缩小:`,
       `扩容磁盘 ${disk.device}`,
       {
         confirmButtonText: '扩容',
@@ -4897,6 +4898,13 @@ const handleResizeDisk = async (disk) => {
         inputValue: '',
         inputPattern: /^\d+$/,
         inputErrorMessage: '请输入有效的数字',
+        inputValidator: (val) => {
+          const num = parseInt(val)
+          if (num < currentCapacity) {
+            return `新容量不能小于当前容量（${currentCapacity} GB）`
+          }
+          return true
+        },
       }
     )
     const newSize = parseInt(value)
