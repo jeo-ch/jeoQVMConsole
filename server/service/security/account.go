@@ -508,6 +508,11 @@ func CanSkipHighRiskVerification(user *model.User) bool {
 	if user == nil {
 		return false
 	}
+	// 优先检查已授予的高风险验证信任，避免跳过初始化后补绑邮箱的用户
+	// 在验证码校验成功并重试原操作时再次收到邮箱验证要求。
+	if user.HighRiskVerifiedUntil != nil && time.Now().Before(*user.HighRiskVerifiedUntil) {
+		return true
+	}
 	// 管理员跳过了安全初始化
 	if user.BootstrapSkipped {
 		// 但如果 SMTP 已配置且邮箱已验证，说明可以正常发送验证码，
@@ -518,7 +523,7 @@ func CanSkipHighRiskVerification(user *model.User) bool {
 		// SMTP 未配置或邮箱未验证时，继续跳过
 		return true
 	}
-	return user.HighRiskVerifiedUntil != nil && time.Now().Before(*user.HighRiskVerifiedUntil)
+	return false
 }
 
 // CanEnterBootstrap 判断是否需要进入安全引导
