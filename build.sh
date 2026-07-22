@@ -147,7 +147,18 @@ if [ "$SKIP_FRONTEND" = false ]; then
 
     info "安装前端依赖..."
     cd "$WEB_DIR"
-    npm ci
+    NPM_CI_LOG=$(mktemp)
+    if npm ci 2>&1 | tee "$NPM_CI_LOG"; then
+        rm -f "$NPM_CI_LOG"
+    elif grep -Eq 'npm error code EUSAGE|package\.json and package-lock\.json.*sync|Missing: .* from lock file' "$NPM_CI_LOG"; then
+        warn "检测到前端锁文件与当前平台依赖元数据不同步，正在重新解析并修复锁文件..."
+        npm install
+        rm -f "$NPM_CI_LOG"
+    else
+        cat "$NPM_CI_LOG"
+        rm -f "$NPM_CI_LOG"
+        error "前端依赖安装失败"
+    fi
 
     info "构建前端..."
     npm run build
